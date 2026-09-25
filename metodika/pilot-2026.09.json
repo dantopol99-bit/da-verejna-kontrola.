@@ -1,0 +1,42 @@
+{
+  "kod": "pilot-2026.09",
+  "popis": "Pilot měření kvality dat (P1–P4) a párování zakázek se smlouvami. Prahy doporučení stanoveny před měřením.",
+  "platnost_od": "2026-09-25",
+  "dokument": "metodika/pilot-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 30,
+    "min_zaklad": null,
+    "obdobi_od": "2025-09-01",
+    "obdobi_do": "2026-09-01",
+    "p1": {
+      "n": 200,
+      "max_stran_ocr": 12,
+      "okno_kontextu_castky": 160
+    },
+    "p2": {
+      "n": 50,
+      "formulare_vysledku": ["29", "30", "31", "32", "33", "34", "35"],
+      "okno_dni_datum_uzavreni": 30,
+      "okno_dni_bez_data_uzavreni": [-180, 7],
+      "tolerance_castky": 0.10,
+      "sazby_dph": [0.21, 0.12],
+      "vahy": {"ico": 0.4, "datum": 0.3, "castka": 0.3},
+      "prah_pravdepodobne": 0.70,
+      "max_skore_heuristiky": 0.999
+    },
+    "p3": {
+      "min_trvani_dni_viceleta": 366
+    },
+    "p4": {
+      "n_na_registr": 200,
+      "prah_podobnosti_nazvu": 0.80
+    },
+    "doporuceni": {
+      "toky_min_p1_ico_obe_strany_a_castka": 0.90,
+      "toky_min_p2_dolozene": 0.50,
+      "toky_min_p2_sparovano_celkem": 0.80,
+      "zavislost_min_p3_rocni_ano": 0.80,
+      "zavislost_min_p4_sparovatelnost": 0.95
+    }
+  }
+}

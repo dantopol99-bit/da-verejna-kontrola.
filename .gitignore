@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Lokální konfigurace a data
+.env
+data/
+.pgdata/
+*.log
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

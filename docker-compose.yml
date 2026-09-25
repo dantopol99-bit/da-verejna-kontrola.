@@ -1,0 +1,25 @@
+# PostgreSQL pro Platformu veřejné kontroly.
+# Port 55432 záměrně nekoliduje s kotvou (Firemní databáze), která může běžet na 5432.
+name: pvk
+
+services:
+  db:
+    image: ${PVK_PG_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_DB: pvk
+      POSTGRES_USER: pvk
+      POSTGRES_PASSWORD: pvk
+      TZ: Europe/Prague
+      PGTZ: Europe/Prague
+    ports:
+      - "${PVK_PG_PORT:-55432}:5432"
+    volumes:
+      - pvk_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pvk -d pvk"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pvk_pgdata:

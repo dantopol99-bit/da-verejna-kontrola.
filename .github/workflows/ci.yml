@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testy:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: pvk
+          POSTGRES_USER: pvk
+          POSTGRES_PASSWORD: pvk
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U pvk -d pvk"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://pvk:pvk@localhost:55432/pvk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Závislosti
+        run: python -m venv .venv && .venv/bin/pip install -q -e '.[dev]'
+      - name: Lint
+        run: .venv/bin/python -m ruff check src tests
+      - name: Migrace
+        run: .venv/bin/python -m pvk.db migrate
+      - name: Testy (včetně podmínek nepublikování)
+        run: .venv/bin/python -m pytest
+      - name: Publikační brána nad výstupy
+        run: .venv/bin/python -m pvk.publikace
