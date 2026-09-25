@@ -105,7 +105,7 @@ def klasifikuj(text: str, min_dni: int = 366) -> dict:
     elif a.RE_JEDNOTKOVA.search(text) and not cenove:
         vysledek.update(verdikt="ne", duvod="jen jednotkové ceny bez objemu")
     elif not cenove:
-        vysledek.update(verdikt="ne", duvod="text neuvádí částku v cenovém kontextu")
+        vysledek.update(verdikt="ne", duvod="text neuvádí cenu plnění")
     elif viceleta:
         vysledek.update(verdikt="nejasne", duvod="víceletá smlouva s cenou bez výslovné vazby na dobu trvání")
     else:

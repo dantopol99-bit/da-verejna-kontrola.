@@ -1,6 +1,6 @@
 # Pilot: měření kvality dat pro Platformu veřejné kontroly
 
-Metodika `pilot-2026.09` ([popis](../metodika/pilot-2026.09.md), [parametry](../metodika/pilot-2026.09.json)) · sledované období 1. 9. 2025 – 31. 8. 2026 · seed 20260925 · vygenerováno 25. 09. 2026 17:59 příkazem `make pilot` (běh 6 min).
+Metodika `pilot-2026.09` ([popis](../metodika/pilot-2026.09.md), [parametry](../metodika/pilot-2026.09.json)) · sledované období 1. 9. 2025 – 31. 8. 2026 · seed 20260925 · vygenerováno 25. 09. 2026 18:07 příkazem `make pilot` (běh 5 min).
 
 Výsledky jsou měření kvality zdrojových dat, ne hodnocení subjektů. Všechny podíly jsou uvedeny s 95% intervalem spolehlivosti (Wilson).
 
@@ -53,7 +53,7 @@ Endpointy jsou popsány v [docs/sources.md](sources.md). Test dostupnosti probě
 * Každý vybraný záznam je uložen do `raw.zaznam` se zdrojem, ID ve zdroji, URL, časem stažení a hashem; přílohy jako samostatné záznamy s hashem z metadat i hashem staženého souboru.
 * Podrobná pravidla výběrů a verdiktů: [metodika/pilot-2026.09.md](../metodika/pilot-2026.09.md).
 * **P1 výběr:** 200 platných záznamů zveřejněných ve sledovaném období. ID verzí v RS se přidělují po čtyřech (zbytek po dělení 4 se v čase mění), proto se losují skupiny čtyř po sobě jdoucích ID v rozsahu 34599641–39350759 a v každé se hledá existující verze. Losováno 216 skupin (222 dotazů): 0 prázdných, 15 neplatných verzí, 1 mimo období, 0 chyb stažení (vyřazeny). Výsledkem je prostý náhodný výběr z platných verzí v období.
-* **P2 výběr:** rámec 35786 oznámení o výsledku (eForms 29–35) zveřejněných ve VVZ ve sledovaném období; losováno 54 pozic, vyřazeno: zneplatneny_formular 1, bez_uzavrene_smlouvy 3.
+* **P2 výběr:** rámec 35786 oznámení o výsledku (eForms 29–35) zveřejněných ve VVZ ve sledovaném období; losováno 54 pozic, vyřazeno: zneplatněný formulář 1, bez uzavřené smlouvy 3.
 * **P4 IS ReD:** rámec 14008 příjemců s dotací podepsanou v posledních 12 měsících dostupných dat (17. 12. 2024 – 16. 12. 2025; nejnovější podpis v datech 16. 12. 2025).
 * **P4 Seznam operací EU 2021–2027:** rámec 20264 unikátních příjemců (soubor k 1. 9. 2026).
 
@@ -114,7 +114,7 @@ Z 200 záznamů P1 mělo čitelný text a opakované nebo víceleté plnění **
 
 * ne: doba neurčitá bez periodické částky – 6
 * nejasné: opakované plnění bez údaje o periodě a délce – 5
-* ne: text neuvádí částku v cenovém kontextu – 5
+* ne: text neuvádí cenu plnění – 5
 * nejasné: víceletá smlouva s cenou bez výslovné vazby na dobu trvání – 5
 * ano: doba plnění nejvýš jeden rok – roční hodnota = cena za celé plnění – 4
 * ano: jednoznačná periodická částka (měsíční) – 3
@@ -175,13 +175,13 @@ Prahy byly stanoveny **před měřením** v parametrech metodiky (`doporuceni`).
 | Podmínka | Naměřeno | Práh | Splněno |
 |---|---|---|---|
 | P3 roční hodnota určitelná | 31,2 % | ≥ 80,0 % | ne |
-| P4 spárovatelnost – red | 99,5 % | ≥ 95,0 % | ano |
-| P4 spárovatelnost – dotaceeu_2127 | 98,5 % | ≥ 95,0 % | ano |
-| P4 spárovatelnost – szif | neměřeno | ≥ 95,0 % | – |
+| P4 spárovatelnost – IS ReD | 99,5 % | ≥ 95,0 % | ano |
+| P4 spárovatelnost – seznam operací 21+ | 98,5 % | ≥ 95,0 % | ano |
+| P4 spárovatelnost – SZIF | neměřeno | ≥ 95,0 % | – |
 
 **Doporučení: ne (v této verzi).** Indikátor závislosti potřebuje roční hodnotu plnění a spolehlivé napojení příjemců na IČO; tam, kde podmínky splněny nejsou, by indikátor sčítal částky s nejasnou periodou nebo neúplný okruh příjemců. Doporučujeme vrátit se k němu po zavedení periody částky z textu smluv (P3) a po ověření výjimek.
 
-Neměřené podmínky: P4 spárovatelnost – szif.
+Neměřené podmínky: P4 spárovatelnost – SZIF.
 
 ## 6. Omezení
 
@@ -198,5 +198,5 @@ make pilot        # stáhne vzorky (nebo použije stažené), změří P1–P4, 
 make pilot-report # jen přegeneruje report z data/pilot/*.json
 ```
 
-Mezivýsledky: `data/pilot/*.json`; stažené soubory: `data/raw/<zdroj>/<sha256>`; původ: tabulky `raw.stazeni` a `raw.zaznam`; výsledky měření: `ind.indikator_vysledek` (kódy `pilot_*`); vazby zakázka–smlouva se skóre: `core.tok_zdroj`.
+Mezivýsledky: `data/pilot/*.json`; stažené soubory: `data/raw/<zdroj>/<sha256[:2]>/<sha256>.<přípona>`; původ: tabulky `raw.stazeni` a `raw.zaznam`; výsledky měření: `ind.indikator_vysledek` (kódy `pilot_*`); vazby zakázka–smlouva se skóre: `core.tok_zdroj`.
 

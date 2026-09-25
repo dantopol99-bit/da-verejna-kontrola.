@@ -1,23 +1,23 @@
 id_verze,odkaz,neurcita,delka_dni,periodicke,verdikt,rocni_hodnota,duvod
 35642065,https://smlouvy.gov.cz/smlouva/35642065,,,,nejasne,,opakované plnění bez údaje o periodě a délce
-36178965,https://smlouvy.gov.cz/smlouva/36178965,,,,ne,,text neuvádí částku v cenovém kontextu
-36577137,https://smlouvy.gov.cz/smlouva/36577137,,10950,,ne,,text neuvádí částku v cenovém kontextu
+36178965,https://smlouvy.gov.cz/smlouva/36178965,,,,ne,,text neuvádí cenu plnění
+36577137,https://smlouvy.gov.cz/smlouva/36577137,,10950,,ne,,text neuvádí cenu plnění
 37301857,https://smlouvy.gov.cz/smlouva/37301857,False,729,"rocni: 1668264, 1701648",nejasne,,více různých periodických částek (roční)
 39321119,https://smlouvy.gov.cz/smlouva/39321119,,,mesicni: 50000,ano,600000,jednoznačná periodická částka (měsíční)
 36293689,https://smlouvy.gov.cz/smlouva/36293689,True,698,,ne,,doba neurčitá bez periodické částky
 34907565,https://smlouvy.gov.cz/smlouva/34907565,,,mesicni: 5400,ano,64800,jednoznačná periodická částka (měsíční)
 36842833,https://smlouvy.gov.cz/smlouva/36842833,True,,,ne,,doba neurčitá bez periodické částky
 35616733,https://smlouvy.gov.cz/smlouva/35616733,,,,nejasne,,opakované plnění bez údaje o periodě a délce
-35922665,https://smlouvy.gov.cz/smlouva/35922665,False,,,ne,,text neuvádí částku v cenovém kontextu
+35922665,https://smlouvy.gov.cz/smlouva/35922665,False,,,ne,,text neuvádí cenu plnění
 39329055,https://smlouvy.gov.cz/smlouva/39329055,,1095,,nejasne,,víceletá smlouva s cenou bez výslovné vazby na dobu trvání
 39276434,https://smlouvy.gov.cz/smlouva/39276434,,,,nejasne,,opakované plnění bez údaje o periodě a délce
 36456641,https://smlouvy.gov.cz/smlouva/36456641,,,rocni: 190000,ano,190000,jednoznačná periodická částka (roční)
 37267185,https://smlouvy.gov.cz/smlouva/37267185,,1825,,nejasne,,víceletá smlouva s cenou bez výslovné vazby na dobu trvání
 36861825,https://smlouvy.gov.cz/smlouva/36861825,True,,,ne,,doba neurčitá bez periodické částky
 35705437,https://smlouvy.gov.cz/smlouva/35705437,True,,,ne,,doba neurčitá bez periodické částky
-38347306,https://smlouvy.gov.cz/smlouva/38347306,,,,ne,,text neuvádí částku v cenovém kontextu
+38347306,https://smlouvy.gov.cz/smlouva/38347306,,,,ne,,text neuvádí cenu plnění
 38704268,https://smlouvy.gov.cz/smlouva/38704268,True,,,ne,,doba neurčitá bez periodické částky
-39090430,https://smlouvy.gov.cz/smlouva/39090430,,,,ne,,text neuvádí částku v cenovém kontextu
+39090430,https://smlouvy.gov.cz/smlouva/39090430,,,,ne,,text neuvádí cenu plnění
 35979121,https://smlouvy.gov.cz/smlouva/35979121,,,rocni: 40433,ano,40433,jednoznačná periodická částka (roční)
 35967025,https://smlouvy.gov.cz/smlouva/35967025,,,"rocni: 11880000, 14374800, 2494800",ano,11880000,jednoznačná periodická částka (roční)
 35892405,https://smlouvy.gov.cz/smlouva/35892405,,333,,ano,153371,doba plnění nejvýš jeden rok – roční hodnota = cena za celé plnění

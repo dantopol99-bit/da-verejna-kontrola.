@@ -192,7 +192,7 @@ def doporuceni(ctx: Kontext, p1, p2, p3, p4) -> dict:
     ]
     b_podminky = [("P3 roční hodnota určitelná", hodnota(p3 and p3["ano"]), prahy["zavislost_min_p3_rocni_ano"])]
     for registr, r in (p4 or {}).items():
-        b_podminky.append((f"P4 spárovatelnost – {registr}",
+        b_podminky.append((f"P4 spárovatelnost – {REGISTRY_KRATCE.get(registr, registr)}",
                            hodnota(r.get("sparovatelne")) if r.get("stav") == "zmereno" else None,
                            prahy["zavislost_min_p4_sparovatelnost"]))
 
@@ -219,6 +219,10 @@ def _tabulka_podminek(podminky) -> list[str]:
 
 
 VERDIKTY_P3 = {"ano": "ano", "ne": "ne", "nejasne": "nejasné"}
+VYRAZENI_P2 = {"zneplatneny_formular": "zneplatněný formulář", "bez_uzavrene_smlouvy": "bez uzavřené smlouvy",
+               "neznama_struktura_formulare": "neznámá struktura formuláře",
+               "stranka_bez_vysledku": "prázdná stránka výsledků"}
+REGISTRY_KRATCE = {"red": "IS ReD", "dotaceeu_2127": "seznam operací 21+", "szif": "SZIF"}
 DRUHY_VYJIMEK = {
     "castka": "částka z metadat v textu nenalezena, text uvádí jiné částky",
     "castka_chybi_v_metadatech": "částka jen v příloze (metadata ji neuvádějí)",
@@ -386,7 +390,7 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
         m = p2["meta"]
         w(f"* **P2 výběr:** rámec {m['ramec']} oznámení o výsledku (eForms 29–35) zveřejněných ve VVZ ve sledovaném "
           f"období; losováno {m['losovano_pozic']} pozic, vyřazeno: "
-          + (", ".join(f"{k} {v}" for k, v in m["odmitnuto"].items()) or "nic") + ".")
+          + (", ".join(f"{VYRAZENI_P2.get(k, k)} {v}" for k, v in m["odmitnuto"].items()) or "nic") + ".")
     for registr, x in (p4 or {}).items():
         if x.get("stav") == "zmereno":
             meta = x["meta"]
@@ -631,7 +635,7 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
     w("make pilot-report # jen přegeneruje report z data/pilot/*.json")
     w("```")
     w("")
-    w("Mezivýsledky: `data/pilot/*.json`; stažené soubory: `data/raw/<zdroj>/<sha256>`; původ: tabulky "
+    w("Mezivýsledky: `data/pilot/*.json`; stažené soubory: `data/raw/<zdroj>/<sha256[:2]>/<sha256>.<přípona>`; původ: tabulky "
       "`raw.stazeni` a `raw.zaznam`; výsledky měření: `ind.indikator_vysledek` (kódy `pilot_*`); vazby "
       "zakázka–smlouva se skóre: `core.tok_zdroj`.")
     w("")
