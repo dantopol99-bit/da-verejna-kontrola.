@@ -325,3 +325,17 @@ def test_db_ind_je_pouze_pro_insert(db, metodika_id):
     with pytest.raises(psycopg.Error) as e:
         db.execute("UPDATE ind.indikator_vysledek SET pocet_pripadu = 1")
     assert e.value.sqlstate == "PV001"
+
+
+def test_db_min_zaklad_null_znamena_bez_minima_objemu(db):
+    klic = zajisti_metodiku(db, {"kod": "test-min-zaklad-null", "popis": "test", "platnost_od": "2020-01-01",
+                                 "parametry": {"min_pocet_pripadu": 30, "min_zaklad": None}})
+    db.commit()
+    db.execute(
+        "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, zaklad, "
+        "metodika_verze_id) VALUES ('se_zakladem', '2025-01-01', '2026-01-01', 40, 1, %s)",
+        (klic,),
+    )
+    assert db.execute(
+        "SELECT count(*) AS n FROM ind.indikator_k_publikaci WHERE metodika_verze_id = %s", (klic,)
+    ).fetchone()["n"] == 1

@@ -225,3 +225,26 @@ exportu; podpisy po exportu se počítají a uvádějí jako nález kvality dat.
 **Rozhodnutí.** Každé číslo pilotu se zapisuje jako výsledek s kódem `pilot_*`, obdobím, počtem
 případů (n), verzí metodiky a neutrálním textem; prochází tak stejnými podmínkami publikace jako
 budoucí indikátory (minimální základ 30 případů).
+
+## D-024 Kalibrace pravidel detekce během pilotu (prahy doporučení beze změny)
+
+**Kontext.** Pravidlová detekce (částky, data podpisu, znečitelnění, periodicita) se poprvé setkala
+se skutečnými smlouvami. Ruční kontrola vzorku nálezů ukázala systematické chyby: „ze dne“ u odkazů
+na usnesení se počítalo jako datum podpisu; částky v tabulkách bez označení měny se nenašly; tmavé
+řádky tabulek, záhlaví se světlým textem a sloupcové grafy se hlásily jako začernění; smluvní doložky
+o uveřejnění („údaje, které by jinak podléhaly znečitelnění“) se počítaly jako textová značka
+znečitelnění; záruční doba a udržitelnost projektu se počítaly jako doba plnění; jednotkové ceny
+(Kč/m² ročně) jako roční hodnota; jako „částka jen v příloze“ se počítaly hodinové sazby, spoluúčast
+pojištění nebo prahy („v hodnotě vyšší než“) a čísla navazující na jednotku („m3 EUR“) jako částky.
+**Rozhodnutí.** Pravidla byla zpřesněna (popis v `metodika/pilot-2026.09.md`, každá úprava má test
+v `tests/test_pilot.py`), mezivýsledky přepočteny z uložených dat. Prahy doporučení
+(`doporuceni`) ani definice měřených podílů se neměnily. Verze detekce je v cache textu
+(`VERZE_DETEKCE`), takže změna pravidel vynutí přepočet.
+**Důsledky.** Výjimky v `docs/pilot_vyjimky.csv` odrážejí zpřesněná pravidla; zbývající nejistota
+je právě to, co má potvrdit člověk.
+
+## D-025 Oprava pohledu k publikaci novou migrací
+
+Pohled `ind.indikator_k_publikaci` vyřazoval výsledky, když metodika uváděla `"min_zaklad": null`.
+Oprava je v migraci 0006 (aplikovaná migrace 0004 se nemění, D-001); regresní test
+`test_db_min_zaklad_null_znamena_bez_minima_objemu`.

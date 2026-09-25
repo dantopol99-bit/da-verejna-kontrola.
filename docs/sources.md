@@ -24,7 +24,7 @@ Legenda dostupnosti z prostředí pilotu: ✅ dostupné · ⛔ nedostupné (spoj
 | Aktualizace | průběžně; **dumpy se zpětně přepisují** (změna nebo znepřístupnění záznamu se promítne i do starších dumpů) – proto ukládáme hash staženého dumpu a vybrané záznamy do `raw` |
 | API pro zveřejňující | ISRS (SOAP) – jen pro zápis, vyhledávací API pro veřejnost neexistuje |
 | NKOD | datová sada „Smlouvy v Registru smluv“ (poskytovatel DIA, distribuce `https://data.smlouvy.gov.cz/`) |
-| Dostupnost z pilotu | ⛔ `data.smlouvy.gov.cz` i `smlouvy.gov.cz`: TLS spojení ukončeno bez odpovědi (≈ 12 s). Podle monitoringu Hlídače státu byl registr v týdnu 18.–25. 9. 2026 nedostupný 58,6 % času i z ČR (nejdelší výpadek 14 min) – jde o kombinaci přetížení/ochrany a omezení pro zahraniční sítě. |
+| Dostupnost z pilotu | ⛔ `data.smlouvy.gov.cz` i `smlouvy.gov.cz`: TLS spojení ukončeno bez odpovědi (≈ 12 s). Podle monitoringu Hlídače státu (https://www.hlidacstatu.cz/statniweby/info/128, stav k 25. 9. 2026) byl registr v týdnu 18.–25. 9. 2026 nedostupný 58,6 % času i z ČR (nejdelší výpadek 14 min) – jde o kombinaci přetížení/ochrany a omezení pro zahraniční sítě. |
 | V pilotu | kód připraven (`pvk.zdroje.registr_smluv`: proudový parser dumpů, výběr z denních dumpů); při nedostupnosti se použije zrcadlo (níže) |
 
 ### 1a. Zrcadlo registru smluv – Hlídač státu

@@ -1,9 +1,12 @@
-"""Test dostupnosti zdokumentovaných endpointů (jeden pokus bez opakování, zapisuje se do raw.stazeni).
+"""Test dostupnosti zdokumentovaných endpointů (nejvýš dva pokusy s odstupem, každý pokus se zapisuje
+do raw.stazeni; druhý pokus odliší krátký výpadek od trvalé nedostupnosti).
 
 Slouží jako doklad v reportu: co bylo v okamžiku pilotu z prostředí dosažitelné a co ne.
 """
 
 from __future__ import annotations
+
+import time
 
 from pvk.pilot.kontext import LOG, Kontext
 from pvk.zdroje.dotace import je_antibot_vyzva
@@ -22,15 +25,24 @@ ENDPOINTY = [
 ]
 
 
+POKUSY = 2
+ODSTUP_S = 5
+
+
 def over(ctx: Kontext) -> list[dict]:
     vysledky = []
     for zdroj, url, popis in ENDPOINTY:
-        odp = ctx.stahovac.ziskej(zdroj, url, obnov=True, pokusy=0, timeout=(15, 40))
+        for pokus in range(1, POKUSY + 1):
+            odp = ctx.stahovac.ziskej(zdroj, url, obnov=True, pokusy=0, timeout=(15, 40))
+            if odp.status == 200 or pokus == POKUSY:
+                break
+            time.sleep(ODSTUP_S)
         stav = "dostupne" if odp.status == 200 else "nedostupne"
         if odp.status == 200 and odp.cesta is not None and je_antibot_vyzva(odp.obsah()):
             stav = "antibot_vyzva"
         vysledky.append({"zdroj": zdroj, "url": url, "popis": popis, "cas": odp.cas_stazeni, "http_status": odp.status,
-                         "chyba": (odp.chyba or "")[:200] or None, "stav": stav, "stazeni_id": odp.stazeni_id})
+                         "chyba": (odp.chyba or "")[:500] or None, "stav": stav, "stazeni_id": odp.stazeni_id,
+                         "pokusu": pokus})
         LOG.info("dostupnost %-16s %-12s %s", zdroj, stav, url)
     ctx.uloz("dostupnost", vysledky)
     return vysledky

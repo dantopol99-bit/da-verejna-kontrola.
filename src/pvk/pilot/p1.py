@@ -18,13 +18,22 @@ from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
 
+from PIL import Image
+
 from pvk import raw
 from pvk.http import Odpoved
 from pvk.pilot.kontext import LOG, Kontext
 from pvk.pilot.krizova import TextZaznamu, krizova_kontrola
 from pvk.pilot.statistika import Podil
 from pvk.text import analyza as a
-from pvk.text.extrakce import TextPrilohy, extrahuj
+from pvk.text.extrakce import (
+    VERZE_DETEKCE,
+    TextPrilohy,
+    cerne_bloky,
+    cerne_bloky_skenu_pdf,
+    extrahuj,
+    vektorove_cerne_obdelniky,
+)
 from pvk.zdroje.hlidac import HlidacRS
 from pvk.zdroje.registr_smluv import OficialniRS
 from pvk.zdroje.rs import PrilohaRS, ZaznamRS
@@ -122,8 +131,21 @@ def text_prilohy(ctx: Kontext, odp: Odpoved, nazev: str) -> TextPrilohy:
     """Text přílohy s cache podle SHA-256 souboru (OCR je drahé)."""
     cache = ctx.nast.data_dir / "cache" / "text" / f"{odp.sha256}.json"
     if cache.is_file():
-        return TextPrilohy(**json.loads(cache.read_text(encoding="utf-8")))
-    tp = extrahuj(Path(odp.cesta), nazev, int(ctx.metodika["p1"]["max_stran_ocr"]))
+        data = json.loads(cache.read_text(encoding="utf-8"))
+        tp = TextPrilohy(**{**data, "verze_detekce": data.get("verze_detekce", 1)})
+        if tp.verze_detekce == VERZE_DETEKCE:
+            return tp
+        # pravidla detekce se změnila: text (a OCR) zůstává, přepočítá se jen detekce ve vektorovém PDF
+        if tp.format == "pdf":
+            tp.cerne_obdelniky = vektorove_cerne_obdelniky(Path(odp.cesta))
+            if tp.ocr_stran:
+                tp.cerne_bloky_sken = cerne_bloky_skenu_pdf(Path(odp.cesta), int(ctx.metodika["p1"]["max_stran_ocr"]))
+        elif tp.format == "obrazek":
+            with Image.open(odp.cesta) as img:
+                tp.cerne_bloky_sken = cerne_bloky(img)
+        tp.verze_detekce = VERZE_DETEKCE
+    else:
+        tp = extrahuj(Path(odp.cesta), nazev, int(ctx.metodika["p1"]["max_stran_ocr"]))
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(asdict(tp), ensure_ascii=False), encoding="utf-8")
     return tp
@@ -216,7 +238,7 @@ def zpracuj(ctx: Kontext, zdroj: str, z: ZaznamRS, odp: Odpoved, hs: HlidacRS | 
     vyjimky: list[dict] = []
     text = "\n\f".join(texty)
     castky_textu = a.najdi_castky(text) if text else []
-    cenove = [c for c in castky_textu if c.cenovy_kontext]
+    cenove = a.ceny_plneni(text, castky_textu)
     vysledek["castka_v_priloze"] = bool(cenove)
     vysledek["m2_castka_jen_v_priloze"] = (not z.ma_castku) and bool(cenove)
     vysledek["m3_znecitelneno"] = bool(znecitelneni)

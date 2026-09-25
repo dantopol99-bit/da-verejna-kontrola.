@@ -164,6 +164,13 @@ class ParovacRS:
         return z, rid
 
 
+def _rozdil_dni(sm: SmlouvaVVZ, z: ZaznamRS | None) -> int | None:
+    """Rozdíl data uzavření v RS a v oznámení (BT-145) ve dnech; None, pokud některé chybí."""
+    if z is None or z.datum_uzavreni is None or sm.datum_uzavreni is None:
+        return None
+    return (z.datum_uzavreni - sm.datum_uzavreni).days
+
+
 def _okno_hledani(sm: SmlouvaVVZ, ozn: OznameniVVZ, p: dict) -> tuple[date, date] | None:
     if sm.datum_uzavreni:
         okno = int(p["okno_dni_datum_uzavreni"])
@@ -189,19 +196,24 @@ def paruj(ctx: Kontext, parovac: ParovacRS, ozn: OznameniVVZ) -> dict:
                     "metoda": "odkaz_bt151",
                     "zaznam_existuje": z is not None,
                     "platny": z.platny if z else None,
+                    "id_smlouvy": z.id_smlouvy if z else None,
                     "shoda_ico_zadavatele": bool(z and zadavatele & ica_zaznamu(z)),
+                    "rozdil_dni_uzavreni": _rozdil_dni(sm, z),
                     "raw_zaznam_id": rid,
                 }
             )
     # (b) evidenční číslo zakázky v textu / metadatech RS
     if ozn.ev_cislo_zakazky:
-        _, radky = parovac.hs.hledej(f'"{ozn.ev_cislo_zakazky}"', max_stran=1)
+        celkem_ev, radky = parovac.hs.hledej(f'"{ozn.ev_cislo_zakazky}"', max_stran=1)
         for r in radky[:10]:
             z, rid = parovac.detail(r.id_verze)
             if z is not None and zadavatele & ica_zaznamu(z):
+                rozdily = [x for x in (_rozdil_dni(sm, z) for sm in ozn.smlouvy) if x is not None]
                 dolozene.append(
                     {"smlouva": None, "id_verze": z.id_verze, "metoda": "evidencni_cislo_vz", "zaznam_existuje": True,
-                     "platny": z.platny, "shoda_ico_zadavatele": True, "raw_zaznam_id": rid}
+                     "platny": z.platny, "id_smlouvy": z.id_smlouvy, "shoda_ico_zadavatele": True,
+                     "rozdil_dni_uzavreni": min(rozdily, key=abs) if rozdily else None,
+                     "zaznamu_s_ev_cislem": celkem_ev, "raw_zaznam_id": rid}
                 )
     # (c) heuristika pro každou smlouvu a dvojici IČO zadavatel × dodavatel
     heuristika = []
@@ -220,7 +232,8 @@ def paruj(ctx: Kontext, parovac: ParovacRS, ozn: OznameniVVZ) -> dict:
                     z, rid = parovac.detail(r.id_verze)
                     if z is None:
                         continue
-                    kandidati[r.id_verze] = {**skore(sm, z, zadavatele, ozn.datum_uverejneni, p), "raw_zaznam_id": rid}
+                    kandidati[r.id_verze] = {**skore(sm, z, zadavatele, ozn.datum_uverejneni, p),
+                                             "id_smlouvy": z.id_smlouvy, "platny": z.platny, "raw_zaznam_id": rid}
         serazeni = sorted(kandidati.values(), key=lambda k: (-k["skore"], k["id_verze"]))
         heuristika.append(
             {
@@ -249,7 +262,31 @@ def paruj(ctx: Kontext, parovac: ParovacRS, ozn: OznameniVVZ) -> dict:
             "dolozena_je_nejlepsi": bool(dolozena_id & nejlepsi),
             "heuristika_nasla_neco": bool(nad_prahem),
         }
-    return {"kategorie": kategorie, "dolozene": dolozene, "heuristika": heuristika, "validace": validace}
+    if validace is not None and not validace["heuristika_nasla_dolozenou"]:
+        okno = int(p["okno_dni_datum_uzavreni"])
+        duvody = set()
+        for d in dolozene:
+            if not d["zaznam_existuje"]:
+                continue
+            if d["platny"] is False:
+                duvody.add("dolozeny_zaznam_zneplatnen")
+            elif d["metoda"] == "evidencni_cislo_vz" and (d.get("zaznamu_s_ev_cislem") or 0) > 1:
+                duvody.add("ev_cislo_vede_na_vice_zaznamu")
+            elif d["rozdil_dni_uzavreni"] is not None and abs(d["rozdil_dni_uzavreni"]) > okno:
+                duvody.add("datum_uzavreni_rs_a_vvz_se_lisi")
+            else:
+                duvody.add("chybi_castka_nebo_ico_v_rs")
+        validace["duvody_neshody"] = sorted(duvody)
+    kategorie_detail = kategorie
+    if kategorie == "dolozene":
+        kategorie_detail = "dolozene_odkaz_bt151" if any(
+            d["metoda"] == "odkaz_bt151" and d["zaznam_existuje"] for d in dolozene) else "dolozene_jen_ev_cislo"
+    elif kategorie == "jen_heuristicky":
+        kategorie_detail = "heuristicky_s_castkou" if any(
+            h["nejlepsi"] and h["nejlepsi"]["skore"] >= prah and h["nejlepsi"]["shoda_castky"] > 0 for h in heuristika
+        ) else "heuristicky_bez_castky"
+    return {"kategorie": kategorie, "kategorie_detail": kategorie_detail, "dolozene": dolozene,
+            "heuristika": heuristika, "validace": validace}
 
 
 # --- zápis do core (toky, částky, vazby se skóre) -------------------------------------------------
@@ -290,13 +327,17 @@ def zapis_do_core(ctx: Kontext, ozn: OznameniVVZ, raw_id: int, vysledek: dict, p
             zapis_entitu(conn, "udalost", f"{klic_toku}:uzavreni", {
                 "tok_id": str(tok), "zdrojovy_zaznam_id": str(zz_vvz), "typ": "uzavreni_smlouvy",
                 "datum": sm.datum_uzavreni}, od)
-        vazby = [(d["id_verze"], "dolozena", d["metoda"], 1.0, d.get("raw_zaznam_id"))
-                 for d in vysledek["dolozene"] if d["zaznam_existuje"] and d["smlouva"] in (sm.id, None)]
+        # jedna vazba na záznam RS (odkaz BT-151 má přednost před evidenčním číslem a heuristikou);
+        # stejná entita se v jedné transakci nesmí zapsat dvakrát (D-004)
+        vazby: dict[str, tuple] = {}
+        for d in sorted(vysledek["dolozene"], key=lambda d: d["metoda"] != "odkaz_bt151"):
+            if d["zaznam_existuje"] and d["smlouva"] in (sm.id, None) and d["id_verze"] not in vazby:
+                vazby[d["id_verze"]] = ("dolozena", d["metoda"], 1.0, d.get("raw_zaznam_id"))
         h = heur.get(sm.id)
-        if h and h["nejlepsi"] and h["nejlepsi"]["skore"] >= prah and h["nejlepsi"]["id_verze"] not in {v[0] for v in vazby}:
-            vazby.append((h["nejlepsi"]["id_verze"], "pravdepodobna", "heuristika_ico_datum_castka",
-                          h["nejlepsi"]["skore"], h["nejlepsi"].get("raw_zaznam_id")))
-        for idv, stav, metoda, sk, rid in vazby:
+        if h and h["nejlepsi"] and h["nejlepsi"]["skore"] >= prah and h["nejlepsi"]["id_verze"] not in vazby:
+            vazby[h["nejlepsi"]["id_verze"]] = ("pravdepodobna", "heuristika_ico_datum_castka",
+                                                h["nejlepsi"]["skore"], h["nejlepsi"].get("raw_zaznam_id"))
+        for idv, (stav, metoda, sk, rid) in vazby.items():
             if rid is None:
                 continue
             z, _ = parovac.detail(idv)
@@ -311,7 +352,7 @@ def zapis_do_core(ctx: Kontext, ozn: OznameniVVZ, raw_id: int, vysledek: dict, p
                 else "shoda IČO zadavatele a dodavatele, data uzavření a částky v toleranci"}, od)
             if z is not None and (z.hodnota_bez_dph or z.hodnota_vcetne_dph):
                 hodnota, rezim = ((z.hodnota_bez_dph, "bez_dph") if z.hodnota_bez_dph else (z.hodnota_vcetne_dph, "vcetne_dph"))
-                zapis_entitu(conn, "castka", f"{HS_ZDROJ}:{idv}:smluvni", {
+                zapis_entitu(conn, "castka", f"{klic_toku}:rs:{idv}:smluvni", {
                     "tok_id": str(tok), "zdrojovy_zaznam_id": str(zz_rs), "typ": "smluvni", "hodnota": hodnota,
                     "mena": "CZK", "dph_rezim": rezim, "perioda": "neurcena"}, od)
         conn.commit()
@@ -341,6 +382,13 @@ def mer(ctx: Kontext) -> dict:
     n = len(polozky)
     pocty = {k: sum(1 for x in polozky if x["kategorie"] == k) for k in ("dolozene", "jen_heuristicky", "nesparovano")}
     validace = [x["validace"] for x in polozky if x["validace"]]
+    detail: dict[str, int] = {}
+    for x in polozky:
+        detail[x["kategorie_detail"]] = detail.get(x["kategorie_detail"], 0) + 1
+    duvody_neshody: dict[str, int] = {}
+    for v in validace:
+        for d in v.get("duvody_neshody", []):
+            duvody_neshody[d] = duvody_neshody.get(d, 0) + 1
     vysledky = {
         "meta": meta,
         "n": n,
@@ -353,7 +401,9 @@ def mer(ctx: Kontext) -> dict:
             "heuristika_nasla_dolozenou": sum(1 for v in validace if v["heuristika_nasla_dolozenou"]),
             "dolozena_je_nejlepsi": sum(1 for v in validace if v["dolozena_je_nejlepsi"]),
             "heuristika_nasla_neco": sum(1 for v in validace if v["heuristika_nasla_neco"]),
+            "duvody_neshody": duvody_neshody,
         },
+        "pocty_detail": detail,
         "polozky": polozky,
     }
     ctx.uloz("p2", vysledky)

@@ -36,19 +36,40 @@ def _text_zaznamu(ctx: Kontext, polozka: dict) -> str | None:
     return "\n\f".join(texty) if texty else None
 
 
+NASOBKY = {"rocni": 1, "mesicni": 12, "ctvrtletni": 4}
+NAZVY_PERIOD = {"rocni": "roční", "mesicni": "měsíční", "ctvrtletni": "čtvrtletní"}
+SAZBY_DPH = (Decimal("0.21"), Decimal("0.12"))
+
+
+def sluc_dph(hodnoty: set[Decimal]) -> set[Decimal]:
+    """Sloučí varianty téže částky: s DPH (×1,21 / ×1,12) a samotnou DPH (×0,21 / ×0,12) nahradí
+    základem bez DPH. {11 880 000, 14 374 800, 2 494 800} -> {11 880 000}."""
+    odvozene = set()
+    for w in hodnoty:
+        for v in hodnoty:
+            if v == w:
+                continue
+            if any(abs(w - v * (1 + s)) <= 1 or abs(w - v * s) <= 1 for s in SAZBY_DPH):
+                odvozene.add(w)
+    return set(hodnoty) - odvozene
+
+
 def klasifikuj(text: str, min_dni: int = 366) -> dict:
     """Čistá funkce: text smlouvy -> {opakovane, verdikt, rocni_hodnota, duvod, dukazy}."""
     doba = a.doba_plneni(text)
     castky = a.najdi_castky(text)
     periodicke = a.periodicke_castky(text, castky)
     opakovane_slovo = a.RE_OPAKOVANE_PLNENI.search(text)
-    viceleta = doba["delka_dni"] is not None and doba["delka_dni"] >= min_dni
-    ma_periodu = any(periodicke.values())
-    opakovane = bool(doba["neurcita"]) or viceleta or ma_periodu or bool(opakovane_slovo)
+    delka = doba["delka_dni"]
+    viceleta = delka is not None and delka >= min_dni
+    # průběžné plnění (služby, nájem…) trvající aspoň půl roku je opakované i v rámci jednoho roku
+    prubezne = delka is not None and delka >= 180 and doba["prubezne"]
+    druhy = [k for k, v in periodicke.items() if v]
+    opakovane = bool(doba["neurcita"]) or viceleta or prubezne or bool(druhy) or bool(opakovane_slovo)
     vysledek: dict = {
         "opakovane": opakovane,
         "neurcita": doba["neurcita"],
-        "delka_dni": doba["delka_dni"],
+        "delka_dni": delka,
         "periodicke": {k: sorted({str(n.hodnota) for n in v}) for k, v in periodicke.items()},
         "verdikt": None,
         "rocni_hodnota": None,
@@ -58,44 +79,35 @@ def klasifikuj(text: str, min_dni: int = 366) -> dict:
     if not opakovane:
         return vysledek
 
-    def jednoznacna(nalezy: list[a.NalezCastky]) -> Decimal | None:
-        hodnoty = {n.hodnota for n in nalezy}
-        return hodnoty.pop() if len(hodnoty) == 1 else None
+    if druhy:
+        rocne = sluc_dph({n.hodnota * NASOBKY[k] for k in druhy for n in periodicke[k]})
+        dukazy = [n.uryvek for k in druhy for n in periodicke[k][:1]]
+        if len(rocne) == 1:
+            (hodnota,) = rocne
+            vysledek.update(verdikt="ano", rocni_hodnota=hodnota,
+                            duvod="jednoznačná periodická částka (" + ", ".join(NAZVY_PERIOD[k] for k in druhy) + ")", dukazy=dukazy)
+        else:
+            vysledek.update(verdikt="nejasne", duvod="více různých periodických částek (" + ", ".join(NAZVY_PERIOD[k] for k in druhy) + ")",
+                            dukazy=dukazy)
+        return vysledek
 
-    druhy = [k for k, v in periodicke.items() if v]
-    if len(druhy) == 1:
-        nalezy = periodicke[druhy[0]]
-        hodnota = jednoznacna(nalezy)
-        if hodnota is not None:
-            nasobek = {"rocni": 1, "mesicni": 12, "ctvrtletni": 4}[druhy[0]]
-            vysledek.update(verdikt="ano", rocni_hodnota=hodnota * nasobek,
-                            duvod=f"jednoznačná {druhy[0]} částka", dukazy=[nalezy[0].uryvek])
-            return vysledek
-        vysledek.update(verdikt="nejasne", duvod=f"více různých částek s periodou {druhy[0]}",
-                        dukazy=[n.uryvek for n in nalezy[:2]])
-        return vysledek
-    if len(druhy) > 1:
-        vysledek.update(verdikt="nejasne", duvod="částky s různými periodami (" + ", ".join(druhy) + ")",
-                        dukazy=[n.uryvek for k in druhy for n in periodicke[k][:1]])
-        return vysledek
-    # bez periodické částky
-    celkem = a.RE_CELKEM_ZA_DOBU.search(text)
-    cenove = [c for c in castky if c.cenovy_kontext]
-    if celkem and viceleta and not doba["neurcita"] and cenove:
-        hodnota = max(c.hodnota for c in cenove)
-        let = Decimal(doba["delka_dni"]) / Decimal(365)
-        vysledek.update(verdikt="ano", rocni_hodnota=(hodnota / let).quantize(Decimal("0.01")),
-                        duvod="celková cena výslovně za celou dobu trvání a pevná doba trvání",
-                        dukazy=[a.uryvek(text, celkem.start(), celkem.end())])
-        return vysledek
-    if a.RE_JEDNOTKOVA.search(text) and not cenove:
-        vysledek.update(verdikt="ne", duvod="jen jednotkové ceny bez objemu")
-    elif doba["neurcita"]:
+    cenove = [c for c in a.ceny_plneni(text, castky) if c.hodnota >= a.MIN_PERIODICKA_CASTKA]
+    if doba["neurcita"]:
         vysledek.update(verdikt="ne", duvod="doba neurčitá bez periodické částky")
+    elif delka is not None and delka <= 370 and cenove:
+        hodnota = max(sluc_dph({c.hodnota for c in cenove}))
+        vysledek.update(verdikt="ano", rocni_hodnota=hodnota,
+                        duvod="doba plnění nejvýš jeden rok – roční hodnota = cena za celé plnění")
+    elif viceleta and cenove and a.RE_CELKEM_ZA_DOBU.search(text):
+        celkem = max(sluc_dph({c.hodnota for c in cenove}))
+        vysledek.update(verdikt="ano", rocni_hodnota=(celkem / (Decimal(delka) / Decimal(365))).quantize(Decimal("0.01")),
+                        duvod="celková cena výslovně za celou dobu trvání a pevná doba trvání")
+    elif a.RE_JEDNOTKOVA.search(text) and not cenove:
+        vysledek.update(verdikt="ne", duvod="jen jednotkové ceny bez objemu")
     elif not cenove:
         vysledek.update(verdikt="ne", duvod="text neuvádí částku v cenovém kontextu")
     elif viceleta:
-        vysledek.update(verdikt="nejasne", duvod="víceletá smlouva s celkovou cenou bez výslovné vazby na dobu trvání")
+        vysledek.update(verdikt="nejasne", duvod="víceletá smlouva s cenou bez výslovné vazby na dobu trvání")
     else:
         vysledek.update(verdikt="nejasne", duvod="opakované plnění bez údaje o periodě a délce")
     return vysledek

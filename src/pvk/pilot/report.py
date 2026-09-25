@@ -7,6 +7,7 @@ Výsledky měření se zapisují i do ind.indikator_vysledek (období, počet p�
 from __future__ import annotations
 
 import csv
+import re
 import statistics
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -34,6 +35,31 @@ def _datum(d: str | date | None) -> str:
     return f"{d.day}. {d.month}. {d.year}"
 
 
+def _cislo(x: float, mist: int = 3) -> str:
+    """Desetinné číslo s českou desetinnou čárkou."""
+    return f"{x:.{mist}f}".replace(".", ",")
+
+
+def _popis_chyby(chyba: str | None) -> str:
+    """Srozumitelný popis chyby spojení; plné znění je v raw.stazeni.chyba."""
+    if not chyba:
+        return ""
+    if "Tunnel connection failed" in chyba:
+        m = re.search(r"Tunnel connection failed: ([^')]+)", chyba)
+        return f"síťová proxy prostředí pilotu cíl nedosáhla ({m.group(1) if m else 'tunnel'})"
+    if "ProxyError" in chyba:
+        return "síťová proxy prostředí pilotu spojení nenavázala"
+    if "ConnectionResetError" in chyba or "Connection aborted" in chyba:
+        return "spojení ukončeno protistranou bez odpovědi (connection reset)"
+    if "Timeout" in chyba:
+        return "vypršel časový limit spojení"
+    if "SSLError" in chyba:
+        return "chyba TLS"
+    if "NameResolution" in chyba or "Name or service not known" in chyba:
+        return "název serveru nelze přeložit (DNS)"
+    return chyba.split(":")[0]
+
+
 def _den_pred(d: str | date) -> date:
     return date.fromisoformat(str(d)[:10]) - timedelta(days=1)
 
@@ -50,7 +76,7 @@ def _zapis_csv(cesta: Path, radky: list[dict], sloupce: list[str]) -> None:
 # --- výjimky a data po záznamech --------------------------------------------------------------------
 
 
-def zapis_vyjimky(p1: dict | None, p3: dict | None) -> list[dict]:
+def zapis_vyjimky(p1: dict | None, p3: dict | None, docs: Path = DOCS) -> list[dict]:
     radky = []
     for mereni, zdroj in (("P1", p1), ("P3", p3)):
         for v in (zdroj or {}).get("vyjimky", []):
@@ -60,7 +86,7 @@ def zapis_vyjimky(p1: dict | None, p3: dict | None) -> list[dict]:
         r["id"] = f"V{i:03d}"
         r["potvrzeno"] = ""
     _zapis_csv(
-        DOCS / "pilot_vyjimky.csv",
+        docs / "pilot_vyjimky.csv",
         radky,
         ["id", "mereni", "zaznam", "udaj", "hodnota_metadata", "nalezeno_v_textu", "odkaz_zaznamu",
          "odkaz_originalu", "navrh_verdiktu", "zduvodneni", "potvrzeno"],
@@ -68,7 +94,7 @@ def zapis_vyjimky(p1: dict | None, p3: dict | None) -> list[dict]:
     return radky
 
 
-def zapis_data(p1, p2, p3, p4) -> None:
+def zapis_data(p1, p2, p3, p4, data: Path = DATA) -> None:
     if p1:
         radky = []
         for p in p1["polozky"]:
@@ -83,7 +109,7 @@ def zapis_data(p1, p2, p3, p4) -> None:
                 "kontrola_data": k.get("datum_uzavreni"),
                 "kontrola_ico": "; ".join(f"{i}:{v}" for i, v in (k.get("ico") or {}).items()),
             })
-        _zapis_csv(DATA / "p1_vzorek.csv", radky, [
+        _zapis_csv(data / "p1_vzorek.csv", radky, [
             "id_verze", "odkaz", "cas_zverejneni", "datum_uzavreni", "ico_subjektu", "ico_protistrany",
             "protistran_bez_ico", "castka_v_metadatech", "hodnota_bez_dph", "hodnota_vcetne_dph", "cizi_mena",
             "duvod_neuvedeni_ceny", "m1_ico_obe_strany_a_castka", "prilohy_pocet", "prilohy_hash_ok", "prilohy_ocr",
@@ -105,14 +131,14 @@ def zapis_data(p1, p2, p3, p4) -> None:
                 "heuristika_shoda_castky": top["shoda_castky"] if top else "",
                 "kandidatu": sum(len(h["kandidati"]) for h in x["heuristika"]),
             })
-        _zapis_csv(DATA / "p2_vzorek.csv", radky, [
+        _zapis_csv(data / "p2_vzorek.csv", radky, [
             "ev_cislo_formulare", "ev_cislo_zakazky", "odkaz", "datum_uverejneni", "druh_formulare", "zdroj_podani",
             "zadavatele_ico", "pocet_smluv", "kategorie", "dolozene_vazby", "heuristika_id_verze", "heuristika_skore",
             "heuristika_shoda_data", "heuristika_shoda_castky", "kandidatu"])
     if p3:
         radky = [{**x, "periodicke": "; ".join(f"{k}: {', '.join(v)}" for k, v in x["periodicke"].items() if v)}
                  for x in p3["polozky"]]
-        _zapis_csv(DATA / "p3_klasifikace.csv", radky, [
+        _zapis_csv(data / "p3_klasifikace.csv", radky, [
             "id_verze", "odkaz", "neurcita", "delka_dni", "periodicke", "verdikt", "rocni_hodnota", "duvod"])
     if p4:
         radky = []
@@ -120,7 +146,7 @@ def zapis_data(p1, p2, p3, p4) -> None:
             for x in r.get("polozky", []):
                 radky.append({"registr": registr, **x, "ma_ico": bool(x.get("ico")),
                               "ico": "" if x.get("je_fyzicka_osoba") else x.get("ico")})
-        _zapis_csv(DATA / "p4_vzorek.csv", radky, [
+        _zapis_csv(data / "p4_vzorek.csv", radky, [
             "registr", "id_ve_zdroji", "pravni_forma", "je_fyzicka_osoba", "ma_ico", "ico", "kategorie",
             "podobnost_nazvu"])
 
@@ -192,7 +218,29 @@ def _tabulka_podminek(podminky) -> list[str]:
 # --- report -----------------------------------------------------------------------------------------
 
 
-REGISTRY = {"red": "IS ReD (dotace ze státního rozpočtu a fondů)", "dotaceeu_2127": "Seznam operací EU 2021–2027",
+VERDIKTY_P3 = {"ano": "ano", "ne": "ne", "nejasne": "nejasné"}
+DRUHY_VYJIMEK = {
+    "castka": "částka z metadat v textu nenalezena, text uvádí jiné částky",
+    "castka_chybi_v_metadatech": "částka jen v příloze (metadata ji neuvádějí)",
+    "datum_uzavreni": "datum uzavření dřívější než poslední podpis v textu",
+    "ico_strana": "IČO smluvní strany v textu nenalezeno",
+    "ico_subjekt": "IČO publikujícího subjektu v textu nenalezeno",
+    "rocni_hodnota (P3)": "roční hodnotu nelze spolehlivě určit",
+}
+VYSLEDKY_KONTROLY = {
+    "shoda": "shoda",
+    "shoda_po_prepoctu_dph": "shoda po přepočtu DPH",
+    "shoda_nasobek_periody": "násobek periodické částky z textu",
+    "shoda_souctu_polozek": "součet cenových položek z textu",
+    "neshoda": "neshoda (výjimka k potvrzení)",
+    "text_bez_ceny": "text bez ceny",
+    "bez_castky_v_metadatech": "metadata bez částky",
+    "cizi_mena": "cizí měna, v textu nenalezeno",
+    "bez_textu": "bez čitelného textu",
+    "nelze_overit": "nelze ověřit (poslední podpis bez data)",
+    "bez_data_v_metadatech": "metadata bez data",
+}
+REGISTRY = {"red":"IS ReD (dotace ze státního rozpočtu a fondů)", "dotaceeu_2127": "Seznam operací EU 2021–2027",
             "szif": "SZIF (zemědělské dotace)"}
 KATEGORIE_P4 = {
     "ico_ares_shoda_nazvu": "IČO v ARES, název odpovídá",
@@ -206,11 +254,11 @@ KATEGORIE_P4 = {
 }
 
 
-def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
+def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Path:
     dostupnost = ctx.nacti("dostupnost") or []
     p1, p2, p3, p4 = ctx.nacti("p1"), ctx.nacti("p2"), ctx.nacti("p3"), ctx.nacti("p4")
-    vyjimky = zapis_vyjimky(p1, p3)
-    zapis_data(p1, p2, p3, p4)
+    vyjimky = zapis_vyjimky(p1, p3, docs)
+    zapis_data(p1, p2, p3, p4, docs / "pilot_data")
     dop = doporuceni(ctx, p1, p2, p3, p4)
     mereni_ind = []
     if p1:
@@ -234,8 +282,9 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
     w(f"Metodika `{KOD_METODIKY}` ([popis](../metodika/{KOD_METODIKY}.md), "
       f"[parametry](../metodika/{KOD_METODIKY}.json)) · sledované období {_datum(ctx.od)} – "
       f"{_datum(_den_pred(ctx.do))} · seed {ctx.seed} · "
-      f"vygenerováno {datetime.now(UTC).astimezone().strftime('%d. %m. %Y %H:%M')} příkazem `make pilot`"
-      + (f" (běh {trvani_s / 60:.0f} min)" if trvani_s else "") + ".")
+      f"vygenerováno {datetime.now(UTC).astimezone().strftime('%d. %m. %Y %H:%M')} "
+      + (f"příkazem `make pilot` (běh {trvani_s / 60:.0f} min)." if trvani_s
+         else "příkazem `make pilot-report` z uložených mezivýsledků."))
     w("")
     w("Výsledky jsou měření kvality zdrojových dat, ne hodnocení subjektů. Všechny podíly jsou uvedeny "
       "s 95% intervalem spolehlivosti (Wilson).")
@@ -285,19 +334,23 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
     w("## 1. Zdroje a jejich dostupnost")
     w("")
     w("Endpointy jsou popsány v [docs/sources.md](sources.md). Test dostupnosti proběhl v rámci `make pilot` "
-      "(jeden pokus bez opakování; každý pokus je zapsán v `raw.stazeni`).")
+      "(nejvýš dva pokusy s odstupem 5 s; každý pokus je zapsán v `raw.stazeni`). Měření používají data stažená "
+      "při prvním běhu pilotu (čas stažení je u každého souboru v `raw.stazeni`).")
     w("")
     w("| Zdroj | Endpoint | Stav | Detail |")
     w("|---|---|---|---|")
     for d in dostupnost:
-        detail = f"HTTP {d['http_status']}" if d["http_status"] else (d["chyba"] or "")
+        detail = f"HTTP {d['http_status']}" if d["http_status"] else _popis_chyby(d["chyba"])
+        if (d.get("pokusu") or 1) > 1:
+            detail = f"{d['pokusu']}. pokus: {detail}"
         stav = {"dostupne": "dostupné", "nedostupne": "**nedostupné**", "antibot_vyzva": "**anti-bot výzva**"}[d["stav"]]
-        w(f"| {d['popis']} | `{d['url']}` | {stav} | {detail[:110]} |")
+        w(f"| {d['popis']} | `{d['url']}` | {stav} | {detail} |")
     w("")
     if p1 and p1["zdroj"] == "hlidac":
         w("**Registr smluv:** oficiální otevřená data (`data.smlouvy.gov.cz`) ani web `smlouvy.gov.cz` nebyly "
-          "z prostředí pilotu dosažitelné (spojení ukončeno bez odpovědi serveru; podle monitoringu Hlídače státu "
-          "byl registr smluv v týdnu pilotu nedostupný i z ČR zhruba polovinu času). P1–P3 proto použily zrcadlo "
+          "z prostředí pilotu dosažitelné (spojení ukončeno bez odpovědi serveru; podle monitoringu Hlídače státu, "
+          "[statniweby/info/128](https://www.hlidacstatu.cz/statniweby/info/128), byl registr smluv v týdnu "
+          "18.–25. 9. 2026 nedostupný 58,6 % času i z ČR). P1–P3 proto použily zrcadlo "
           "**Hlídač státu** (CC BY 3.0 CZ): metadata záznamů a kopie příloh. Každá kopie přílohy byla přijata jen "
           "tehdy, když se její SHA-256 shodoval s hashem přílohy z metadat registru smluv, tj. jde bajtově o tentýž "
           "soubor jako originál. Omezení zrcadla: částky jsou zobrazeny zaokrouhlené na celé koruny. "
@@ -362,9 +415,9 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
         w(f"| Metadata bez částky s uvedeným důvodem neuvedení ceny | {_t(rz['duvod_neuvedeni_ceny'])} |")
         w(f"| Čitelný text alespoň jedné přílohy | {_t(rz['text_citelny'])} |")
         w(f"| **Částka jen v příloze** (z celku) | **{_t(p1['m2_castka_jen_v_priloze'])}** |")
-        w(f"| … z záznamů bez částky v metadatech | {_t(rz['m2_mezi_bez_castky'])} |")
+        w(f"| … ze záznamů bez částky v metadatech | {_t(rz['m2_mezi_bez_castky'])} |")
         w(f"| **Znečitelněné** (z celku) | **{_t(p1['m3_znecitelneno'])}** |")
-        w(f"| … z záznamů s čitelným textem | {_t(rz['m3_mezi_citelnymi'])} |")
+        w(f"| … ze záznamů s čitelným textem | {_t(rz['m3_mezi_citelnymi'])} |")
         w("")
         duvody: dict[str, int] = {}
         for p in p1["polozky"]:
@@ -379,10 +432,11 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
             for k in kontroly:
                 hodnota = (p.get("kontroly") or {}).get(k) or "bez_textu"
                 kontroly[k][hodnota] = kontroly[k].get(hodnota, 0) + 1
-        w("Křížová kontrola metadata × text: částka – "
-          + ", ".join(f"{k} {v}" for k, v in sorted(kontroly["castka"].items(), key=lambda x: -x[1]))
-          + "; datum uzavření – "
-          + ", ".join(f"{k} {v}" for k, v in sorted(kontroly["datum_uzavreni"].items(), key=lambda x: -x[1])) + ".")
+        w("Křížová kontrola metadata × text originálu (počty záznamů):")
+        w("")
+        for k, nazev in (("castka", "částka"), ("datum_uzavreni", "datum uzavření")):
+            w(f"* {nazev}: " + ", ".join(f"{VYSLEDKY_KONTROLY.get(h, h)} {v}"
+                                         for h, v in sorted(kontroly[k].items(), key=lambda x: -x[1])))
         w("")
         w("Data po záznamech: [docs/pilot_data/p1_vzorek.csv](pilot_data/p1_vzorek.csv).")
         w("")
@@ -398,21 +452,54 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
         w("| Výsledek | Zakázek |")
         w("|---|---|")
         w(f"| Doloženě (odkaz BT-151 nebo evidenční číslo v RS) | {_t(p2['dolozene'])} |")
-        w(f"| Jen heuristicky (skóre ≥ {ctx.metodika['p2']['prah_pravdepodobne']}) | {_t(p2['jen_heuristicky'])} |")
+        w(f"| Jen heuristicky (skóre ≥ {_cislo(ctx.metodika['p2']['prah_pravdepodobne'], 2)}) | {_t(p2['jen_heuristicky'])} |")
         w(f"| Spárováno celkem | {_t(p2['sparovano_celkem'])} |")
         w(f"| Nespárováno | {_t(Podil(p2['pocty']['nesparovano'], p2['n']).jako_dict())} |")
         w("")
+        det = p2.get("pocty_detail", {})
+        if det:
+            w("Rozpad: doloženě odkazem BT-151 na konkrétní smlouvu "
+              f"{det.get('dolozene_odkaz_bt151', 0)}, doloženě jen evidenčním číslem zakázky "
+              f"{det.get('dolozene_jen_ev_cislo', 0)}; heuristicky se shodou částky {det.get('heuristicky_s_castkou', 0)}, "
+              f"heuristicky jen IČO + datum (skóre na prahu, částku nešlo porovnat nebo nesouhlasí) "
+              f"{det.get('heuristicky_bez_castky', 0)}.")
+            w("")
         if metody:
             w("Doložené vazby podle metody (zakázka může mít obě): "
               + ", ".join(f"`{k}` {v}" for k, v in metody.items()) + ".")
+        ev = [d for x in p2["polozky"] for d in x["dolozene"] if d["metoda"] == "evidencni_cislo_vz"]
+        if ev:
+            vice = sum(1 for x in p2["polozky"] if any((d.get("zaznamu_s_ev_cislem") or 0) > 1
+                                                          for d in x["dolozene"] if d["metoda"] == "evidencni_cislo_vz"))
+            w(f"Evidenční číslo zakázky vede u {vice} z "
+              f"{sum(1 for x in p2['polozky'] if any(d['metoda'] == 'evidencni_cislo_vz' for d in x['dolozene']))} "
+              "zakázek na více záznamů RS (rámcové dohody, dynamické nákupní systémy, dílčí smlouvy): dokládá vazbu "
+              "zakázka → skupina smluv, ne konkrétní smlouvu.")
+        bt = [d for x in p2["polozky"] for d in x["dolozene"] if d["metoda"] == "odkaz_bt151"]
+        if bt:
+            rozdily = [d["rozdil_dni_uzavreni"] for d in bt if d.get("rozdil_dni_uzavreni") is not None]
+            velke = [r for r in rozdily if abs(r) > ctx.metodika["p2"]["okno_dni_datum_uzavreni"]]
+            w(f"Odkazů BT-151 do RS bylo {len(bt)}, všechny vedou na existující záznam, "
+              f"{sum(1 for d in bt if d.get('platny') is False)} na záznam později zneplatněný; u {len(velke)} z "
+              f"{len(rozdily)} se datum uzavření v RS a v oznámení liší o více než "
+              f"{ctx.metodika['p2']['okno_dni_datum_uzavreni']} dní (až {max((abs(r) for r in velke), default=0)} dní).")
         if skore:
-            w(f"Skóre heuristických vazeb (jen heuristicky spárované zakázky): min {min(skore):.3f}, "
-              f"medián {statistics.median(skore):.3f}, max {max(skore):.3f}.")
+            w(f"Skóre heuristických vazeb (jen heuristicky spárované zakázky): min {_cislo(min(skore))}, "
+              f"medián {_cislo(statistics.median(skore))}, max {_cislo(max(skore))}.")
         val = p2["validace_heuristiky"]
         if val["dolozenych_zakazek"]:
+            duvody_txt = {
+                "ev_cislo_vede_na_vice_zaznamu": "evidenční číslo vede na rámcovou/jinou smlouvu téže zakázky",
+                "datum_uzavreni_rs_a_vvz_se_lisi": "datum uzavření v RS a ve VVZ se liší více než o okno",
+                "dolozeny_zaznam_zneplatnen": "doložený záznam byl zneplatněn a zveřejněn znovu",
+                "chybi_castka_nebo_ico_v_rs": "v RS chybí částka nebo IČO",
+            }
             w(f"Kontrola heuristiky na doložených případech: u {val['dolozenych_zakazek']} doloženě spárovaných zakázek "
               f"našla heuristika doložený záznam nad prahem v {val['heuristika_nasla_dolozenou']} případech "
-              f"(z toho jako nejlepšího kandidáta v {val['dolozena_je_nejlepsi']}).")
+              f"(z toho jako nejlepšího kandidáta v {val['dolozena_je_nejlepsi']}). Důvody neshody: "
+              + (", ".join(f"{duvody_txt.get(k, k)} {v}" for k, v in val.get("duvody_neshody", {}).items()) or "–")
+              + ". Heuristika tedy není náhradou doložené vazby: v části případů najde jinou (často správnější, "
+              "např. dílčí) smlouvu, v části případů doloženou smlouvu nenajde kvůli rozporu dat ve zdrojích.")
         w("")
         w("Skóre všech vazeb je zapsáno v `core.tok_zdroj` (stav, metoda, skóre, verze metodiky); data po "
           "zakázkách: [docs/pilot_data/p2_vzorek.csv](pilot_data/p2_vzorek.csv).")
@@ -421,7 +508,7 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
         w("### P3 – roční hodnota u opakovaného / víceletého plnění")
         w("")
         w(f"Z {p3['n_p1']} záznamů P1 mělo čitelný text a opakované nebo víceleté plnění **{p3['n_opakovane']}** "
-          f"smluv ({p3['bez_citelneho_textu']} záznamů bez čitelného textu nešlo posoudit).")
+          f"smluv (záznamy bez čitelného textu, které nešlo posoudit: {p3['bez_citelneho_textu']}).")
         w("")
         w("| Lze spolehlivě určit roční hodnotu? | Podíl |")
         w("|---|---|")
@@ -431,7 +518,8 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
         w("")
         duvody = {}
         for x in p3["polozky"]:
-            duvody[f"{x['verdikt']}: {x['duvod']}"] = duvody.get(f"{x['verdikt']}: {x['duvod']}", 0) + 1
+            klic = f"{VERDIKTY_P3.get(x['verdikt'], x['verdikt'])}: {x['duvod']}"
+            duvody[klic] = duvody.get(klic, 0) + 1
         for k, v in sorted(duvody.items(), key=lambda x: -x[1]):
             w(f"* {k} – {v}")
         w("")
@@ -442,7 +530,8 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
         w("")
         for registr, x in p4.items():
             if x.get("stav") != "zmereno":
-                w(f"* **{REGISTRY.get(registr, registr)}:** nedostupné – {x.get('duvod') or x.get('chyba')}")
+                w(f"**{REGISTRY.get(registr, registr)}:** nedostupné – {x.get('duvod') or x.get('chyba')}.")
+                w("")
                 continue
             sl = x.get("slozeni_ramce") or {}
             celkem = sum(sl.values())
@@ -461,12 +550,22 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
     # --- výjimky ---
     w("## 4. Křížová kontrola a výjimky k potvrzení")
     w("")
-    typy: dict[str, int] = {}
+    typy: dict[tuple[str, str], int] = {}
+    verdikty: dict[str, int] = {}
     for v in vyjimky:
-        typy[f"{v['mereni']} {v['udaj']}"] = typy.get(f"{v['mereni']} {v['udaj']}", 0) + 1
-    w(f"[docs/pilot_vyjimky.csv](pilot_vyjimky.csv) obsahuje **{len(vyjimky)}** výjimek: "
-      + (", ".join(f"{k} {v}" for k, v in sorted(typy.items())) or "žádné") + ".")
+        typy[(v["mereni"], v["udaj"])] = typy.get((v["mereni"], v["udaj"]), 0) + 1
+        druh = v["navrh_verdiktu"].split(" – ")[0]
+        verdikty[druh] = verdikty.get(druh, 0) + 1
+    w(f"[docs/pilot_vyjimky.csv](pilot_vyjimky.csv) obsahuje **{len(vyjimky)}** výjimek k potvrzení.")
     w("")
+    if typy:
+        w("| Měření | Výjimka | `udaj` v CSV | Počet |")
+        w("|---|---|---|---|")
+        for (mereni, udaj), pocet in sorted(typy.items()):
+            w(f"| {mereni} | {DRUHY_VYJIMEK.get(udaj, udaj)} | `{udaj}` | {pocet} |")
+        w("")
+        w("Návrhy verdiktů: " + ", ".join(f"{k} {v}" for k, v in sorted(verdikty.items(), key=lambda x: -x[1])) + ".")
+        w("")
     w("Každý řádek má údaj, hodnotu v metadatech, co bylo nalezeno v textu, odkaz na záznam a na originál "
       "přílohy a návrh verdiktu. Sloupec `potvrzeno` je prázdný pro vaše potvrzení (ANO / NE / poznámka). "
       "Citace z textu smluv se do CSV nepřebírají (mohou obsahovat osobní údaje); u částek je uvedeno klíčové "
@@ -537,6 +636,6 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None) -> Path:
       "zakázka–smlouva se skóre: `core.tok_zdroj`.")
     w("")
 
-    cesta = DOCS / "pilot_report.md"
+    cesta = docs / "pilot_report.md"
     cesta.write_text("\n".join(r) + "\n", encoding="utf-8")
     return cesta

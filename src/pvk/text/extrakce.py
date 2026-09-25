@@ -24,6 +24,7 @@ from PIL import Image
 
 MIN_ZNAKU_NA_STRANU = 40
 MAX_STRAN_TEXT = 150
+VERZE_DETEKCE = 4  # zvyšuje se při změně pravidel detekce znečitelnění (přepočet cache)
 
 
 @dataclass
@@ -38,6 +39,7 @@ class TextPrilohy:
     orezano: bool = False
     chyba: str | None = None
     poznamky: list[str] = field(default_factory=list)
+    verze_detekce: int = VERZE_DETEKCE
 
     @property
     def citelny(self) -> bool:
@@ -90,7 +92,8 @@ def cerne_bloky(obrazek: Image.Image) -> int:
 
     Postup: obraz se zmenší na šířku 600 px, tmavé pixely (< 60) tvoří masku; v každém řádku se
     najdou úseky tmavých pixelů délky >= 25 px; úseky překrývající se v sousedních řádcích se spojí.
-    Blok = výška 5–45 px, šířka 25 px až 90 % šířky strany, zaplnění >= 0,85.
+    Blok = výška 5–45 px, šířka 25 px až 75 % šířky strany, zaplnění >= 0,97 (plně černá plocha;
+    tmavé řádky tabulek s bílým textem nebo široké pruhy se nepočítají).
     """
     sirka = 600
     if obrazek.width == 0:
@@ -128,12 +131,39 @@ def cerne_bloky(obrazek: Image.Image) -> int:
     pocet = 0
     for b in bloky:
         w, h = b["x1"] - b["x0"], b["y1"] - b["y0"] + 1
-        if 5 <= h <= 45 and 25 <= w <= 0.9 * sirka and b["plocha"] / (w * h) >= 0.85:
+        if 5 <= h <= 45 and 25 <= w <= 0.75 * sirka and b["plocha"] / (w * h) >= 0.97:
             pocet += 1
     return pocet
 
 
-def _vektorove_cerne_obdelniky(cesta: Path, max_stran: int = 40) -> int:
+def _hodnoty_barvy(barva) -> list[float] | None:
+    hodnoty = barva if isinstance(barva, (list, tuple)) else [barva]
+    try:
+        return [float(h) for h in hodnoty]
+    except (TypeError, ValueError):
+        return None
+
+
+def _tmava(barva) -> bool:
+    """Téměř černá výplň (šedá, RGB i CMYK)."""
+    h = _hodnoty_barvy(barva) if barva is not None else None
+    return bool(h) and ((len(h) == 1 and h[0] <= 0.15) or (len(h) == 3 and max(h) <= 0.15)
+                        or (len(h) == 4 and h[3] >= 0.85))
+
+
+def _svetla(barva) -> bool:
+    """Téměř bílá výplň (šedá, RGB i CMYK)."""
+    h = _hodnoty_barvy(barva) if barva is not None else None
+    return bool(h) and ((len(h) == 1 and h[0] >= 0.85) or (len(h) == 3 and min(h) >= 0.85)
+                        or (len(h) == 4 and max(h) <= 0.15))
+
+
+def vektorove_cerne_obdelniky(cesta: Path, max_stran: int = 40) -> int:
+    """Počet začernění ve vektorovém PDF: vyplněný tmavý obdélník velikosti řádku textu
+    (výška 5–20 pt, šířka >= 15 pt), mimo záhlaví a zápatí (horních/dolních 4 % strany), který leží
+    na řádku s textem (znak do 40 pt vlevo/vpravo) nebo zakrývá text. Větší tmavé plochy (razítka,
+    podpisová pole, loga), tmavé obdélníky bez textu v okolí (grafy) a tmavé podklady se světlým
+    textem (záhlaví tabulek) se nepočítají."""
     try:
         import pdfplumber
     except ImportError:
@@ -142,25 +172,45 @@ def _vektorove_cerne_obdelniky(cesta: Path, max_stran: int = 40) -> int:
     try:
         with pdfplumber.open(cesta) as pdf:
             for strana in pdf.pages[:max_stran]:
+                vyska_strany = float(strana.height)
+                znaky = strana.chars
                 for r in strana.rects:
-                    barva = r.get("non_stroking_color")
-                    if not r.get("fill") or barva is None:
+                    if not r.get("fill") or not _tmava(r.get("non_stroking_color")):
                         continue
-                    hodnoty = barva if isinstance(barva, (list, tuple)) else [barva]
-                    try:
-                        hodnoty = [float(h) for h in hodnoty]
-                    except (TypeError, ValueError):
-                        continue
-                    tmava = (
-                        (len(hodnoty) == 1 and hodnoty[0] <= 0.15)
-                        or (len(hodnoty) == 3 and max(hodnoty) <= 0.15)
-                        or (len(hodnoty) == 4 and hodnoty[3] >= 0.85)
-                    )
                     sirka, vyska = float(r["width"]), float(r["height"])
-                    if tmava and 15 <= sirka <= 0.9 * float(strana.width) and 5 <= vyska <= 40:
+                    if not (15 <= sirka <= 0.9 * float(strana.width) and 5 <= vyska <= 20):
+                        continue
+                    if r["top"] < 0.04 * vyska_strany or r["bottom"] > 0.96 * vyska_strany:
+                        continue
+                    stred = (r["top"] + r["bottom"]) / 2
+                    radek = [c for c in znaky
+                             if abs((c["top"] + c["bottom"]) / 2 - stred) < vyska and r["x0"] - 40 < c["x0"] < r["x1"] + 40]
+                    uvnitr = [c for c in radek if c["text"].strip() and r["x0"] <= (c["x0"] + c["x1"]) / 2 <= r["x1"]]
+                    if any(_svetla(c.get("non_stroking_color")) for c in uvnitr):
+                        continue  # světlý text na tmavém podkladu je čitelný – záhlaví tabulky, ne začernění
+                    if radek:
                         pocet += 1
     except Exception:  # poškozené PDF: znečitelnění se pak posuzuje jen z textu
         return pocet
+    return pocet
+
+
+def cerne_bloky_skenu_pdf(cesta: Path, max_stran: int = 12) -> int:
+    """Černé bloky na stranách PDF bez textové vrstvy (vykreslí je znovu, bez OCR)."""
+    vysledek = _spust(["pdftotext", "-layout", "-l", str(MAX_STRAN_TEXT), str(cesta), "-"], timeout=300)
+    strany = vysledek.stdout.decode("utf-8", "replace").split("\f")
+    if strany and not strany[-1].strip():
+        strany = strany[:-1]  # za poslední stranou následuje oddělovač
+    prazdne = [i for i, s in enumerate(strany) if len(s.strip()) < MIN_ZNAKU_NA_STRANU]
+    pocet = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for i in prazdne[:max_stran]:
+            predpona = Path(tmp) / f"s{i + 1}"
+            _spust(["pdftoppm", "-r", "200", "-gray", "-png", "-f", str(i + 1), "-l", str(i + 1), str(cesta),
+                    str(predpona)], timeout=180)
+            for obrazek in sorted(Path(tmp).glob(f"s{i + 1}*.png")):
+                with Image.open(obrazek) as img:
+                    pocet += cerne_bloky(img)
     return pocet
 
 
@@ -180,7 +230,7 @@ def extrahuj_pdf(cesta: Path, max_stran_ocr: int = 12) -> TextPrilohy:
     m = re.search(r"^Pages:\s+(\d+)", info, re.M)
     celkem_stran = int(m.group(1)) if m else len(strany)
     tp = TextPrilohy("", "pdf", stran=celkem_stran, orezano=celkem_stran > MAX_STRAN_TEXT)
-    tp.cerne_obdelniky = _vektorove_cerne_obdelniky(cesta)
+    tp.cerne_obdelniky = vektorove_cerne_obdelniky(cesta)
     prazdne = [i for i, s in enumerate(strany) if len(s.strip()) < MIN_ZNAKU_NA_STRANU]
     if prazdne and ocr_dostupne():
         with tempfile.TemporaryDirectory() as tmp:

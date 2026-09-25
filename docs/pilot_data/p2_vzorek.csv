@@ -1,0 +1,51 @@
+ev_cislo_formulare,ev_cislo_zakazky,odkaz,datum_uverejneni,druh_formulare,zdroj_podani,zadavatele_ico,pocet_smluv,kategorie,dolozene_vazby,heuristika_id_verze,heuristika_skore,heuristika_shoda_data,heuristika_shoda_castky,kandidatu
+F2026-033437,Z2026-033437,https://vvz.nipez.cz/vyhledat-formular/eVrKvFXXSmj99LfchiTmFzBHnT9ps8GC,2026-06-23,29,WEB,00090450,1,jen_heuristicky,,38178397,0.999,1.0,1.0,3
+F2026-024545,Z2026-007310,https://vvz.nipez.cz/vyhledat-formular/rq8YJ1BWQmWoPwN7cAoUq3MBKEyxft1e,2026-05-07,30,WEB,45193410,1,nesparovano,,,,,,0
+F2025-070373,Z2025-070373,https://vvz.nipez.cz/vyhledat-formular/jky7POkSpdVCaLUMuTq8uPbaDIDJaRz7,2025-12-16,29,WEB,65993390,1,jen_heuristicky,,36083937,0.7,1.0,0.0,5
+F2026-043851,Z2026-043851,https://vvz.nipez.cz/vyhledat-formular/oeoSJYDiKCJDTShRcCfBtLWSn6xdwLMQ,2026-08-10,29,WEB,22792830,1,jen_heuristicky,,39510105,0.999,1.0,1.0,1
+F2026-014364,Z2025-060681,https://vvz.nipez.cz/vyhledat-formular/TGqfVHxWRtQQsEkmwZSogcTW2IfjFrY2,2026-03-19,29,WEB,00843989,2,dolozene,odkaz_bt151:36922865; odkaz_bt151:37025217,37249785,0.999,1.0,1.0,3
+F2026-018048,Z2026-018048,https://vvz.nipez.cz/vyhledat-formular/eKPtOuerig0jK0lxbynRRkOmLSlRSF9N,2026-04-10,29,WEB,00002739,1,jen_heuristicky,,37383025,0.999,1.0,1.0,1
+F2025-058447,Z2023-049368,https://vvz.nipez.cz/vyhledat-formular/20Kueuq5L8v1yFby0YuNfo5zv93D2PXH,2025-10-21,30,WEB,00005886,1,jen_heuristicky,,35037281,0.7,1.0,0.0,20
+F2025-062462,Z2025-062462,https://vvz.nipez.cz/vyhledat-formular/LYSpjhisgaEKRGNqmc0KqnXLWTrKU0oi,2025-11-05,29,WEB,00269000,1,nesparovano,,,,,,0
+F2026-013256,Z2024-027130,https://vvz.nipez.cz/vyhledat-formular/ONdNbeNn7KFDDwuPvXy4KM2lJ5yGT0Yv,2026-03-12,29,WEB,65993390,1,jen_heuristicky,,37030121,0.999,1.0,1.0,5
+F2026-033843,Z2026-016302,https://vvz.nipez.cz/vyhledat-formular/jOcAsykRNS1M7QAcrnAToWniKRxTCpLZ,2026-06-26,29,WEB,27256537,3,dolozene,odkaz_bt151:38488418; odkaz_bt151:38488078; odkaz_bt151:38423138,38423138,0.7,1.0,0.0,36
+F2025-048715,Z2025-048715,https://vvz.nipez.cz/vyhledat-formular/RLr7CvgYi1jqtWwInrkESGILGFxYIB6R,2025-09-02,29,WEB,00283924,1,jen_heuristicky,,34551857,0.986,1.0,0.954,2
+F2026-017281,Z2025-063428,https://vvz.nipez.cz/vyhledat-formular/0Oqf5sTlj05LBWhmeygtiW5W4LSleBU8,2026-04-07,29,WEB,64053466,1,jen_heuristicky,,37228481,0.7,1.0,0.0,9
+F2025-071200,Z2025-047391,https://vvz.nipez.cz/vyhledat-formular/YsHxLWp7J8qquiJyZu9WiMD7pJyGoXZm,2025-12-18,29,WEB,00251038,1,nesparovano,,,,,,0
+F2026-023059,Z2025-012488,https://vvz.nipez.cz/vyhledat-formular/PvITQSbw64SPqqO8bh0b2Up7xOsVajpG,2026-04-30,29,WEB,65993390,1,dolozene,evidencni_cislo_vz:37508753; evidencni_cislo_vz:37379281; evidencni_cislo_vz:38343736; evidencni_cislo_vz:38324095; evidencni_cislo_vz:38863374; evidencni_cislo_vz:38276602; evidencni_cislo_vz:37881177; evidencni_cislo_vz:38329300; evidencni_cislo_vz:37397489; evidencni_cislo_vz:36891373,37823681,0.99,0.967,1.0,44
+F2026-022841,Z2025-056918,https://vvz.nipez.cz/vyhledat-formular/JwZVphtpBkbjKvvyctBy0Oa2KWbYZqdF,2026-04-29,30,WEB,28244532,1,dolozene,evidencni_cislo_vz:37729217,37729217,0.96,0.867,1.0,1
+F2025-065452,Z2025-009139,https://vvz.nipez.cz/vyhledat-formular/WK1iAdzxxkwKDsLGHRw9j8PiaBM97Wja,2025-11-25,30,WEB,70994226,1,nesparovano,,,,,,0
+F2025-056209,Z2025-011303,https://vvz.nipez.cz/vyhledat-formular/H2hhpYJhGi7uQlYprhimucwA7OeChDeD,2025-10-13,30,WEB,25702556,1,nesparovano,,,,,,0
+F2025-055174,Z2022-001039,https://vvz.nipez.cz/vyhledat-formular/uMyj6lJsILUbSNGALvaJ0yZnKW96lM3V,2025-10-08,29,WEB,00007064,1,nesparovano,,,,,,0
+F2026-004275,Z2023-010852,https://vvz.nipez.cz/vyhledat-formular/YoZc7QnDKxK52yTiCF9YB5R3QaqHBvfQ,2026-01-22,29,WEB,61386839,1,jen_heuristicky,,25454831,0.7,1.0,0.0,4
+F2026-005950,Z2024-025512,https://vvz.nipez.cz/vyhledat-formular/iao1CYJO1zTJhA94eHKWels3IBmat4GB,2026-01-27,29,WEB,00064581,1,dolozene,odkaz_bt151:28861736,28861736,0.7,1.0,0.0,1
+F2025-054763,Z2025-010408,https://vvz.nipez.cz/vyhledat-formular/qu3E949dbCLq4XjThUli2QiT0F17Zyvi,2025-10-06,29,WEB,00268810,1,dolozene,evidencni_cislo_vz:35030321,35030321,0.999,1.0,1.0,1
+F2025-064316,Z2024-050099,https://vvz.nipez.cz/vyhledat-formular/mMYKueJfawlcJ7e3HC73FoTNiKS0YDT1,2025-11-19,29,WEB,65993390,1,dolozene,evidencni_cislo_vz:31402336; evidencni_cislo_vz:37726297; evidencni_cislo_vz:38681168; evidencni_cislo_vz:38450898; evidencni_cislo_vz:38602820; evidencni_cislo_vz:38464006; evidencni_cislo_vz:36984733; evidencni_cislo_vz:36914765; evidencni_cislo_vz:37991789; evidencni_cislo_vz:38464002,35681109,0.7,1.0,0.0,9
+F2026-042506,Z2026-006442,https://vvz.nipez.cz/vyhledat-formular/7rEUjgYoDJemmDsVVcNPgbFEBkukditj,2026-08-04,29,WEB,62161598,1,dolozene,odkaz_bt151:38424274,38424274,0.65,0.833,0.0,1
+F2026-044140,Z2026-004805,https://vvz.nipez.cz/vyhledat-formular/H6R9ROwZ13eKZqNR6vM5zqDf4auV1ejt,2026-08-13,29,WEB,00007064,2,jen_heuristicky,,38999638,0.999,1.0,1.0,4
+F2026-005269,Z2025-046232,https://vvz.nipez.cz/vyhledat-formular/AHBGZ4cJnHfHPnlys8Fiefx5Qvoua3aL,2026-01-26,29,WEB,00001279,1,nesparovano,,,,,,0
+F2025-057265,Z2025-032983,https://vvz.nipez.cz/vyhledat-formular/B0Mgziq5lXJ5MUeX2bKJpDfBoHJI1Hoc,2025-10-16,29,WEB,61383082,2,dolozene,odkaz_bt151:35207873; odkaz_bt151:35207877; evidencni_cislo_vz:35207873; evidencni_cislo_vz:35207877,35207861,0.7,1.0,0.0,24
+F2025-065853,Z2023-005879,https://vvz.nipez.cz/vyhledat-formular/DKzH0zWXAq3az4Z8z9hB4nxGvM8FO2TP,2025-11-27,29,WEB,65993390,1,dolozene,evidencni_cislo_vz:24800219,35751665,0.999,1.0,1.0,42
+F2026-040622,Z2025-018379,https://vvz.nipez.cz/vyhledat-formular/GzEeBY3ulOE13Fwoq2gSmonlSZdk3GhY,2026-07-28,29,WEB,03447286,1,dolozene,odkaz_bt151:38884266,38884266,0.999,1.0,1.0,2
+F2025-062725,Z2025-062725,https://vvz.nipez.cz/vyhledat-formular/f0ORIIdZV0IWWFZ9ibxhcswagVR0TPCg,2025-11-06,29,WEB,00262978,1,dolozene,odkaz_bt151:35459653,36000241,0.99,0.967,1.0,4
+F2026-020887,Z2021-040580,https://vvz.nipez.cz/vyhledat-formular/0BnQ0meeYkjxQe0zBGzQ0KgLh7UTMt4f,2026-04-22,29,WEB,00007064,1,jen_heuristicky,,19121571,0.7,1.0,0.0,2
+F2026-018519,Z2024-035308,https://vvz.nipez.cz/vyhledat-formular/5XkWk0ELcUPnvWJnzrUuJRsbH287rQ0J,2026-04-13,30,WEB,70994234,1,jen_heuristicky,,37385353,0.7,1.0,0.0,28
+F2025-050450,Z2025-034401,https://vvz.nipez.cz/vyhledat-formular/U6pryI9PXZNVmtPGcMTbVcsQSAXCNlOe,2025-09-12,29,WEB,00023272,1,jen_heuristicky,,34801133,0.999,1.0,1.0,1
+F2026-026771,Z2026-026771,https://vvz.nipez.cz/vyhledat-formular/Bz7kxs0Xgdj9ZZGD21PiPVVZ6BMFScY0,2026-05-18,29,WEB,00445100,1,nesparovano,,,,,,0
+F2025-048528,Z2025-014484,https://vvz.nipez.cz/vyhledat-formular/7dopBcH64OMMGMAfznj5IGX9LD1Sxx26,2025-09-02,29,WEB,00845451,1,jen_heuristicky,,34625241,0.999,1.0,1.0,10
+F2025-058052,Z2025-058052,https://vvz.nipez.cz/vyhledat-formular/MaSYs1dxHzBE0mSCo5zcGZ0rSQDVeLZZ,2025-10-17,30,WEB,47674652,1,nesparovano,,,,,,0
+F2026-000981,Z2025-056906,https://vvz.nipez.cz/vyhledat-formular/x6i8bsNsbfxxfUdqEyK37cJlPdDgP08X,2026-01-08,29,WEB,00288365,1,jen_heuristicky,,36294137,0.962,1.0,0.873,1
+F2026-038627,Z2026-038627,https://vvz.nipez.cz/vyhledat-formular/SUdmVJb54HJgIgmEow70PMtUl50EDPeD,2026-07-20,29,WEB,00276944,1,nesparovano,,,,,,0
+F2025-060893,Z2024-001515,https://vvz.nipez.cz/vyhledat-formular/zRjeC44fjqtDMaco74d4mlRAGh0guBxZ,2025-10-29,29,WEB,70894451,1,nesparovano,,,,,,0
+F2025-072284,Z2025-072284,https://vvz.nipez.cz/vyhledat-formular/4WOYqN6r9S7MfLwCSA6hKSqQCxdEHl7j,2025-12-31,29,WEB,65993390,1,jen_heuristicky,,36099185,0.999,1.0,1.0,7
+F2026-007182,Z2026-007182,https://vvz.nipez.cz/vyhledat-formular/R0wqkSSsBgp7ooGcXgDooPWDXC7NgOg4,2026-02-02,29,WEB,00064220,1,jen_heuristicky,,36601169,0.7,1.0,0.0,1
+F2025-057206,Z2023-038906,https://vvz.nipez.cz/vyhledat-formular/wmEDEwzdEG7E4CeNGr5hwOAgzffUW8Hs,2025-10-16,29,WEB,60193531,1,dolozene,evidencni_cislo_vz:26483639,35020033,0.69,0.967,0.0,15
+F2025-068896,Z2019-008064,https://vvz.nipez.cz/vyhledat-formular/K5grpS397qUneIzgbuFBa028DQqLJEfS,2025-12-11,29,WEB,71009396,1,dolozene,evidencni_cislo_vz:13460064; evidencni_cislo_vz:37063961; evidencni_cislo_vz:38205481; evidencni_cislo_vz:32435604; evidencni_cislo_vz:10206422; evidencni_cislo_vz:20231687; evidencni_cislo_vz:9750067; evidencni_cislo_vz:13292808; evidencni_cislo_vz:11079168; evidencni_cislo_vz:9773859,35972597,0.7,1.0,0.0,1
+F2026-004732,Z2025-066176,https://vvz.nipez.cz/vyhledat-formular/vAt0sjPiwBX9pS2V1XJyHLQeUyQDfpA1,2026-01-22,29,WEB,47609109,1,nesparovano,,35849957,0.65,0.833,0.0,1
+F2026-005580,Z2023-008889,https://vvz.nipez.cz/vyhledat-formular/tUmqhHWV7sUFYqOzvipJfWwp0U1XfRTb,2026-01-27,29,WEB,00212423,1,jen_heuristicky,,26133891,0.7,1.0,0.0,5
+F2026-002531,Z2026-002531,https://vvz.nipez.cz/vyhledat-formular/aMRnuOrHVUKDs4rro1REo75kiA8xA2aY,2026-01-13,29,WEB,44992785,1,dolozene,odkaz_bt151:36067057,36067057,0.999,1.0,1.0,1
+F2026-006977,Z2024-055285,https://vvz.nipez.cz/vyhledat-formular/0YvxBaF9LLVevsWpKhfAGCrUlSsCcVwW,2026-02-02,30,WEB,47114983,4,dolozene,odkaz_bt151:32187232; odkaz_bt151:32189196; odkaz_bt151:32459264; odkaz_bt151:32190988,,,,,0
+F2026-009903,Z2025-050278,https://vvz.nipez.cz/vyhledat-formular/owJTDA7PZ4j92j8rtk4FcAwqq2o7SDrw,2026-02-19,29,WEB,70891095,2,dolozene,odkaz_bt151:36457597; odkaz_bt151:36458913,36457597,0.999,1.0,1.0,6
+F2026-004640,Z2022-034459,https://vvz.nipez.cz/vyhledat-formular/CXQw8ehRHFJoKQkJjbfJi1CsAPMj5yza,2026-01-23,30,WEB,00005886,1,nesparovano,,35826225,0.62,0.733,0.0,6
+F2026-005829,Z2025-057700,https://vvz.nipez.cz/vyhledat-formular/brhuL188NDwRNh9qbTGlo0H3pm7cSUO5,2026-01-28,29,WEB,49335499,1,dolozene,odkaz_bt151:36535049; evidencni_cislo_vz:39330339; evidencni_cislo_vz:36535049,36535049,0.99,0.967,1.0,1
+F2025-065910,Z2025-065910,https://vvz.nipez.cz/vyhledat-formular/6153RqiyyOXcpmfqlJ7tfSCkGiQS5Ect,2025-11-27,31,WEB,60162694,1,jen_heuristicky,,35473421,0.999,1.0,1.0,3
