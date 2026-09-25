@@ -41,6 +41,7 @@ ROZESTUPY = {
 }
 VYCHOZI_ROZESTUP = 0.2
 KESOVATELNE_STATUSY = (200, 404, 410)
+UKLADANE_HLAVICKY = ("content-length", "last-modified", "etag", "x-total-count", "content-range", "x-last-page")
 
 _PRIPONY = {
     "application/pdf": ".pdf",
@@ -84,6 +85,7 @@ class Odpoved:
     z_cache: bool
     cas_stazeni: datetime
     chyba: str | None = None
+    hlavicky: dict | None = None
 
     @property
     def ok(self) -> bool:
@@ -134,7 +136,7 @@ class Stahovac:
     def _z_cache(self, zdroj: str, url: str, metoda: str, parametry: Mapping | None) -> Odpoved | None:
         row = self.conn.execute(
             """
-            SELECT id, url, http_status, sha256, soubor, content_type, cas_stazeni FROM raw.stazeni
+            SELECT id, url, http_status, sha256, soubor, content_type, cas_stazeni, hlavicky FROM raw.stazeni
             WHERE zdroj = %s AND url = %s AND metoda = %s
               AND parametry IS NOT DISTINCT FROM %s::jsonb
               AND http_status = ANY(%s)
@@ -164,6 +166,7 @@ class Stahovac:
             content_type=row["content_type"],
             z_cache=True,
             cas_stazeni=row["cas_stazeni"],
+            hlavicky=row["hlavicky"],
         )
 
     # -- veřejné API -----------------------------------------------------------------------------
@@ -178,7 +181,7 @@ class Stahovac:
         obnov: bool = False,
         timeout: tuple[float, float] = (20, 180),
         pokusy: int | None = None,
-        hlavicky: Mapping[str, str] | None = None,
+        hlavicky_pozadavku: Mapping[str, str] | None = None,
     ) -> Odpoved:
         """Stáhne URL (nebo vrátí dříve stažené). Výsledek je vždy zapsán do raw.stazeni."""
         pripraveny = requests.Request(metoda, url, params=params).prepare()
@@ -207,10 +210,14 @@ class Stahovac:
                 json=json_telo,
                 timeout=timeout,
                 stream=True,
-                headers=dict(hlavicky or {}),
+                headers=dict(hlavicky_pozadavku or {}),
+                # explicitně: jinak by requests přednostně vzal REQUESTS_CA_BUNDLE z prostředí
+                # a ignoroval doplněné mezilehlé certifikáty
+                verify=self.session.verify,
             ) as r:
                 status = r.status_code
                 content_type = (r.headers.get("Content-Type") or "").split(";")[0].strip() or None
+                hlavicky = {k: r.headers[k] for k in UKLADANE_HLAVICKY if k in r.headers}
                 sha, velikost, cesta_tmp = _stahni_do_souboru(r, self.uloziste)
         except requests.RequestException as e:
             chyba = f"{type(e).__name__}: {e}"[:2000]
@@ -246,9 +253,10 @@ class Stahovac:
             content_type=content_type,
             metoda=metoda,
             parametry=parametry,
+            hlavicky=hlavicky,
         )
         self.conn.commit()
-        return Odpoved(stazeni_id, plna_url, status, sha, cil, content_type, False, cas)
+        return Odpoved(stazeni_id, plna_url, status, sha, cil, content_type, False, cas, hlavicky=hlavicky)
 
 
 def _stahni_do_souboru(r: requests.Response, uloziste: Path) -> tuple[str, int, str]:

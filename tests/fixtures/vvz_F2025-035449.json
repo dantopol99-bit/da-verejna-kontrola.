@@ -1,0 +1,478 @@
+{
+ "_zdroj": "https://api.vvz.nipez.cz – formulář F2025-035449 (Z2025-010690), kontaktní údaje osob odstraněny",
+ "souhrn": {
+  "id": "83bdca62-ac2b-4e4c-a2f6-97bb8a50dd4e",
+  "submissionVersion": "/api/submission_versions/4b2b6150-84dd-482a-8437-d00ebdba5840",
+  "form": "/api/forms/20100a01-c48f-4211-8242-7ec5104462fe",
+  "formSchemaVersion": "/api/form_schema_versions/23399c76-ee07-42f3-b28a-e0f22361eaf1",
+  "organization": "/api/organizations/25312cea-886d-4e32-b8f8-3769a024e6cd",
+  "data": {
+   "verzeSdk": "1.13.0",
+   "dodavatele": [
+    {
+     "ico": "26014998",
+     "nazev": "KAMPA - MARYNKA s.r.o."
+    }
+   ],
+   "evCisloTed": "427089-2025",
+   "zadavatele": [
+    {
+     "ico": "70889546",
+     "nazev": "Královéhradecký kraj"
+    }
+   ],
+   "zdrojPodani": {
+    "id": "WEB-yqtzrv",
+    "typ": "WEB",
+    "uzivatelVvzLogin": "yqtzrv"
+   },
+   "nazevZakazky": "Most ev. č. 30018-7 Staré Buky",
+   "uverejnitTed": true,
+   "uverejnitVvz": true,
+   "druhFormulare": "29",
+   "zakazkaZrusena": false,
+   "datumPrijetiVvz": "2025-06-30T22:13:48+02:00",
+   "datumOdeslaniTed": "2025-06-30T22:13:52+02:00",
+   "formularOpravuje": false,
+   "evCisloZakazkyVvz": "Z2025-010690",
+   "datumUverejneniTed": "2025-07-02T00:00:00+02:00",
+   "datumUverejneniVvz": "2025-07-02T14:00:51+02:00",
+   "formularZneplatnen": false,
+   "lhutaUverejneniTed": "2025-07-03T02:00:00+02:00",
+   "lhutaUverejneniVvz": "2025-07-02T23:59:00+02:00",
+   "uzivatelskyNazevFormulare": "29 Oznámení o výsledku zadávacího řízení – obecná veřejná zakázka",
+   "evCisloVvzSouvisejicihoFormulare": "F2025-010690"
+  },
+  "dataHash": "cc51d09dfb541b6cfbed1aaaa4bbbe3166a0b2a5464977c2d9aff0fe4d8dcb2b",
+  "workflowPlaceCode": "UVEREJNENO_VVZ",
+  "variableId": "F2025-035449",
+  "relatedId": "d87e5741-186c-4e1c-b109-de822282211c",
+  "publicId": "H2CtUO7HiOj0FNMlJPcdZBv6v3f0FKKM",
+  "version": 9,
+  "validityPeriod": "2025-06-30T21:35:31+02:00/",
+  "createdAt": "2025-06-30T21:35:31+02:00",
+  "updatedAt": "2025-07-02T14:00:51+02:00"
+ },
+ "deti": [
+  {
+   "id": "28e7d9b9-653f-4d03-b048-0e6ab2c9f7ec",
+   "parent": "/api/submissions/83bdca62-ac2b-4e4c-a2f6-97bb8a50dd4e",
+   "submissionVersion": "/api/submission_versions/2e325d58-1646-4fa8-a810-0c090be6c7b0",
+   "form": "/api/forms/af4e29f8-1392-45c1-bc1e-6fa1c7d54819",
+   "formSchemaVersion": "/api/form_schema_versions/1f2e1745-e15c-484e-954e-4106db711c4e",
+   "organization": "/api/organizations/25312cea-886d-4e32-b8f8-3769a024e6cd",
+   "data": {
+    "ND-Root": {
+     "ND-Lot": [
+      {
+       "BT-137-Lot": "LOT-0001",
+       "ND-LotTenderingTerms": {
+        "BT-60-Lot": "no-eu-funds",
+        "ND-AwardingTerms": {
+         "ND-LotAwardCriteria": {
+          "ND-LotAwardCriterion": [
+           {
+            "BT-539-Lot": "price",
+            "BT-540-Lot": "Při hodnocení se stanoví pořadí nabídek dle výše nabídkové ceny za předmět veřejné zakázky v Kč bez DPH od nejnižší (1. v pořadí) po nejvyšší.",
+            "BT-734-Lot": "Nabídková cena za předmět veřejné zakázky v Kč bez DPH",
+            "ND-LotAwardCriterionParameters": {
+             "ND-LotAwardWeightCriterionParameter": {
+              "BT-5421-Lot": "per-exa",
+              "BT-541-Lot-WeightNumber": 100.0
+             }
+            }
+           }
+          ]
+         }
+        },
+        "ND-LotReviewTerms": {
+         "OPT-301-Lot-ReviewOrg": "ORG-0002",
+         "OPT-301-Lot-ReviewInfo": "ORG-0002",
+         "ND-ReviewPresentationPeriod": {
+          "BT-99-Lot": "Podmínkou pro podání návrhu k ÚOHS je podání námitek k Zadavateli, které je nutné doručit do 15 dnů ode dne, kdy se stěžovatel dozvěděl o domnělém porušení zákona Zadavatelem, nejpozději však do uzavř"
+         }
+        },
+        "OPT-301-Lot-AddInfo": "ORG-0001",
+        "OPT-301-Lot-DocProvider": "ORG-0001"
+       },
+       "ND-LotProcurementScope": {
+        "BT-21-Lot": "Most ev. č. 30018-7 Staré Buky",
+        "BT-22-Lot": "TOÚ/027-25/Ko",
+        "BT-23-Lot": "works",
+        "BT-24-Lot": "Předmětem veřejné zakázky je zhotovení Díla „Most ev. č. 30018-7 Staré Buky“. Bližší informace uvedeny v zadávací dokumentaci.",
+        "BT-300-Lot": "Zadavatel v souladu s § 105 odst. 2 zákona požaduje, aby dodavatel (případně dodavatelé, kteří se společně účastní zadávacího řízení, ve smyslu § 103 odst. 1 písm. f) zákona) realizoval minimálně násl",
+        "ND-LotDuration": {
+         "BT-36-Lot": {
+          "_value": 24.0,
+          "_unitCode": "WEEK"
+         },
+         "BT-536-Lot": "2025-06-30+02:00"
+        },
+        "ND-LotValueEstimate": {
+         "BT-27-Lot": {
+          "_value": 6262283.0,
+          "_currencyID": "CZK"
+         }
+        },
+        "ND-OptionsAndRenewals": {
+         "BT-54-Lot": "Zadavatel si v souladu s § 100 odst. 1 zákona vyhrazuje následující změny závazku ze Smlouvy, která bude uzavřena s vybraným dodavatelem:\n•\tspočívající ve využití článku 13.8 Obchodních podmínek – val"
+        },
+        "ND-LotPlacePerformance": [
+         {
+          "BT-728-Lot": "most ev. č. 30018-7 na silnici č. III/30018",
+          "ND-LotPerformanceAddress": {
+           "BT-5071-Lot": "CZ052",
+           "BT-5141-Lot": "CZE"
+          }
+         }
+        ],
+        "ND-LotMainClassification": {
+         "BT-262-Lot": "45221100",
+         "BT-26(m)-Lot": "cpv"
+        },
+        "ND-StrategicProcurementType": [
+         {
+          "BT-06-Lot": "env-imp",
+          "BT-777-Lot": "Dodavatel, se kterým bude uzavřena smlouva, musí přijmout veškerá opatření, která lze po něm rozumně požadovat, aby chránil životní prostředí (a to jak na staveništi, tak mimo ně) a omezil škody a obt"
+         }
+        ],
+        "ND-LotEnvironmentalImpactType": [
+         {
+          "BT-774-Lot": "other"
+         }
+        ],
+        "ND-LotAdditionalClassification": [
+         {
+          "BT-263-Lot": "45233000",
+          "BT-26(a)-Lot": "cpv"
+         }
+        ]
+       },
+       "ND-LotTenderingProcess": {
+        "BT-115-Lot": true,
+        "ND-AuctionTerms": {
+         "BT-767-Lot": false
+        },
+        "ND-LotFAContractingSystem": {
+         "BT-765-Lot": "none"
+        },
+        "ND-LotDPSContractingSystem": {
+         "BT-766-Lot": "none"
+        }
+       }
+      }
+     ],
+     "OPT-999": "2000-01-01Z",
+     "BT-01-notice": "32014L0024",
+     "BT-02-notice": "can-standard",
+     "BT-03-notice": "result",
+     "BT-04-notice": "d87e5741-186c-4e1c-b109-de822282211c",
+     "BT-701-notice": "83bdca62-ac2b-4e4c-a2f6-97bb8a50dd4e",
+     "BT-757-notice": "01",
+     "OPT-001-notice": "2.3",
+     "OPT-002-notice": "eforms-sdk-1.13",
+     "BT-05(a)-notice": "2025-06-30+02:00",
+     "BT-05(b)-notice": "22:13:50+02:00",
+     "BT-702(a)-notice": "CES",
+     "ND-RootExtension": {
+      "OPP-070-notice": "29",
+      "ND-NoticeResult": {
+       "ND-LotResult": [
+        {
+         "BT-142-LotResult": "selec-w",
+         "OPT-322-LotResult": "RES-0001",
+         "BT-13713-LotResult": "LOT-0001",
+         "ND-ReceivedSubmissions": [
+          {
+           "BT-759-LotResult": 0.0,
+           "BT-760-LotResult": "part-req"
+          },
+          {
+           "BT-759-LotResult": 3.0,
+           "BT-760-LotResult": "t-esubm"
+          },
+          {
+           "BT-759-LotResult": 3.0,
+           "BT-760-LotResult": "tenders"
+          },
+          {
+           "BT-759-LotResult": 2.0,
+           "BT-760-LotResult": "t-sme"
+          },
+          {
+           "BT-759-LotResult": 0.0,
+           "BT-760-LotResult": "t-oth-eea"
+          },
+          {
+           "BT-759-LotResult": 0.0,
+           "BT-760-LotResult": "t-no-eea"
+          },
+          {
+           "BT-759-LotResult": 0.0,
+           "BT-760-LotResult": "t-verif-inad-low"
+          },
+          {
+           "BT-759-LotResult": 0.0,
+           "BT-760-LotResult": "t-verif-inad"
+          }
+         ],
+         "ND-BuyerReviewComplainants": {
+          "BT-712(a)-LotResult": "complainants",
+          "BT-712(b)-LotResult": 0.0
+         },
+         "ND-LotResultTenderReference": [
+          {
+           "OPT-320-LotResult": "TEN-0001"
+          }
+         ],
+         "ND-LotResultContractReference": [
+          {
+           "OPT-315-LotResult": "CON-0001"
+          }
+         ]
+        }
+       ],
+       "ND-LotTender": [
+        {
+         "BT-171-Tender": 1,
+         "BT-193-Tender": false,
+         "BT-720-Tender": {
+          "_value": 5458000.01,
+          "_currencyID": "CZK"
+         },
+         "BT-1711-Tender": true,
+         "BT-3201-Tender": "TEN-0001",
+         "OPT-310-Tender": "TPA-0001",
+         "OPT-321-Tender": "TEN-0001",
+         "BT-13714-Tender": "LOT-0001",
+         "ND-SubcontractedContract": {
+          "BT-554-Tender": "Výkon zeměměřických činností",
+          "BT-730-Tender": false,
+          "BT-731-Tender": false,
+          "BT-773-Tender": "yes"
+         }
+        }
+       ],
+       "ND-TenderingParty": [
+        {
+         "ND-Tenderer": [
+          {
+           "OPT-300-Tenderer": "ORG-0004"
+          }
+         ],
+         "OPT-210-Tenderer": "TPA-0001"
+        }
+       ],
+       "ND-SettledContract": [
+        {
+         "BT-145-Contract": "2025-06-13+02:00",
+         "BT-150-Contract": "CON-0001",
+         "BT-1451-Contract": "2025-05-19+02:00",
+         "OPT-316-Contract": "CON-0001",
+         "ND-SettledContractTenderReference": [
+          {
+           "BT-3202-Contract": "TEN-0001"
+          }
+         ]
+        }
+       ],
+       "BT-161-NoticeResult": {
+        "_value": 5458000.01,
+        "_currencyID": "CZK"
+       }
+      },
+      "ND-Organizations": {
+       "ND-Organization": [
+        {
+         "ND-Company": {
+          "ND-CompanyAddress": {
+           "BT-507-Organization-Company": "CZ052",
+           "BT-512-Organization-Company": "50004",
+           "BT-513-Organization-Company": "Hradec Králové",
+           "BT-514-Organization-Company": "CZE",
+           "BT-510(a)-Organization-Company": "Kutnohorská 59"
+          },
+          "ND-CompanyContact": {},
+          "ND-CompanyLegalEntity": [
+           {
+            "BT-501-Organization-Company": "27502988"
+           }
+          ],
+          "BT-500-Organization-Company": "ÚDRŽBA SILNIC Královéhradeckého kraje a.s.",
+          "BT-505-Organization-Company": "http://www.uskhk.eu",
+          "OPT-200-Organization-Company": "ORG-0001"
+         }
+        },
+        {
+         "ND-Company": {
+          "ND-CompanyAddress": {
+           "BT-507-Organization-Company": "CZ064",
+           "BT-512-Organization-Company": "60200",
+           "BT-513-Organization-Company": "Brno",
+           "BT-514-Organization-Company": "CZE",
+           "BT-510(a)-Organization-Company": "třída Kpt. Jaroše 1926/7"
+          },
+          "ND-CompanyContact": {},
+          "ND-CompanyLegalEntity": [
+           {
+            "BT-501-Organization-Company": "65349423"
+           }
+          ],
+          "BT-500-Organization-Company": "Úřad pro ochranu hospodářské soutěže",
+          "BT-505-Organization-Company": "https://uohs.gov.cz",
+          "OPT-200-Organization-Company": "ORG-0002"
+         }
+        },
+        {
+         "ND-Company": {
+          "ND-CompanyAddress": {
+           "BT-507-Organization-Company": "CZ052",
+           "BT-512-Organization-Company": "50003",
+           "BT-513-Organization-Company": "Hradec Králové",
+           "BT-514-Organization-Company": "CZE",
+           "BT-510(a)-Organization-Company": "Pivovarské náměstí 1245/2"
+          },
+          "ND-CompanyContact": {},
+          "ND-CompanyLegalEntity": [
+           {
+            "BT-501-Organization-Company": "70889546"
+           }
+          ],
+          "BT-500-Organization-Company": "Královéhradecký kraj",
+          "BT-505-Organization-Company": "http://www.kr-kralovehradecky.cz",
+          "OPT-200-Organization-Company": "ORG-0003"
+         },
+         "OPP-051-Organization": false,
+         "OPP-052-Organization": false
+        },
+        {
+         "ND-Company": {
+          "ND-CompanyAddress": {
+           "BT-507-Organization-Company": "CZ052",
+           "BT-512-Organization-Company": "51236",
+           "BT-513-Organization-Company": "Horní Branná",
+           "BT-514-Organization-Company": "CZE",
+           "BT-510(a)-Organization-Company": "Horní Branná 435"
+          },
+          "ND-CompanyContact": {},
+          "ND-CompanyLegalEntity": [
+           {
+            "BT-501-Organization-Company": "26014998"
+           }
+          ],
+          "BT-165-Organization-Company": "sme",
+          "BT-500-Organization-Company": "KAMPA - MARYNKA s.r.o.",
+          "OPT-200-Organization-Company": "ORG-0004"
+         },
+         "BT-633-Organization": false
+        }
+       ]
+      }
+     },
+     "ND-ProcedureTerms": {
+      "ND-CrossBorderLaw": {
+       "BT-09(a)-Procedure": "CrossBorderLaw",
+       "BT-09(b)-Procedure": "Zákon č. 134/2016 Sb., o zadávání veřejných zakázek"
+      },
+      "ND-LocalLegalBasisNoID": [
+       {
+        "BT-01(e)-Procedure": "134/2016 Sb.",
+        "BT-01(f)-Procedure": "Zákon o zadávání veřejných zakázek"
+       }
+      ],
+      "ND-LocalLegalBasisWithID": [
+       {
+        "BT-01(c)-Procedure": "32014L0024",
+        "BT-01(d)-Procedure": "Směrnice Evropského parlamentu a Rady 2014/24/EU ze dne 26. února 2014 o zadávání veřejných zakázek a o zrušení směrnice 2004/18/ES"
+       }
+      ]
+     },
+     "ND-ContractingParty": [
+      {
+       "ND-Buyer": {
+        "ND-ServiceProviderParty": [
+         {
+          "ND-ProviderParty": {
+           "OPT-300-Procedure-SProvider": "ORG-0001"
+          },
+          "OPT-030-Procedure-SProvider": "serv-prov"
+         }
+        ],
+        "OPT-300-Procedure-Buyer": "ORG-0003"
+       },
+       "BT-10-Procedure-Buyer": "gen-pub",
+       "BT-11-Procedure-Buyer": "ra",
+       "BT-508-Procedure-Buyer": "https://zakazky.cenakhk.cz/profile_display_2.html"
+      }
+     ],
+     "ND-ProcedureProcurementScope": {
+      "BT-21-Procedure": "Most ev. č. 30018-7 Staré Buky",
+      "BT-22-Procedure": "TOÚ/027-25/Ko",
+      "BT-23-Procedure": "works",
+      "BT-24-Procedure": "Předmětem veřejné zakázky je zhotovení Díla „Most ev. č. 30018-7 Staré Buky“. Bližší informace uvedeny v zadávací dokumentaci.",
+      "ND-ProcedureValueEstimate": {
+       "BT-27-Procedure": {
+        "_value": 6262283.0,
+        "_currencyID": "CZK"
+       }
+      },
+      "ND-ProcedureMainClassification": {
+       "BT-262-Procedure": "45221100",
+       "BT-26(m)-Procedure": "cpv"
+      },
+      "OPT-900-Procedure-ValidationAnchor": "_",
+      "ND-ProcedureAdditionalCommodityClassification": [
+       {
+        "BT-263-Procedure": "45233000",
+        "BT-26(a)-Procedure": "cpv"
+       }
+      ],
+      "ND-ProcedurePlacePerformanceAdditionalInformation": [
+       {
+        "BT-728-Procedure": "most ev. č. 30018-7 na silnici č. III/30018",
+        "ND-ProcedurePlacePerformance": {
+         "BT-5071-Procedure": "CZ052",
+         "BT-5141-Procedure": "CZE"
+        }
+       }
+      ]
+     },
+     "ND-ProcedureTenderingProcess": {
+      "BT-105-Procedure": "open"
+     }
+    },
+    "metadata": {
+     "subType": "29",
+     "identifikatoryNipez": {
+      "zadavaciPostup": {
+       "identifikatorNipez": "ZP/RVZ2500081945/001"
+      },
+      "identifikatorNipez": "RVZ2500081945",
+      "identifikatoryCasti": [
+       {
+        "idCastiVvz": "LOT-0001",
+        "identifikatorNipez": "RVZ2500081945/001"
+       }
+      ],
+      "identifikatorySmluv": [
+       {
+        "idSmlouvyVvz": "CON-0001",
+        "identifikatorNipez": "SML/RVZ2500092599",
+        "identifikatorNipezCasti": "RVZ2500081945/001"
+       }
+      ]
+     }
+    }
+   },
+   "dataHash": "932460973883870c2f55743a2b9a0d6db1684f785b29614f30a38795e7144f61",
+   "workflowPlaceCode": "UVEREJNENO",
+   "variableId": "43YHY-5PACE",
+   "relatedId": "d87e5741-186c-4e1c-b109-de822282211c",
+   "publicId": "M2krnjtqwnifZK6LMM7eliRWzen2G29i",
+   "version": 10,
+   "validityPeriod": "2025-06-30T21:35:32+02:00/",
+   "createdAt": "2025-06-30T21:35:32+02:00",
+   "updatedAt": "2025-07-30T17:02:43+02:00"
+  }
+ ]
+}

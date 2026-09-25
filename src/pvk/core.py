@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from datetime import date
-from uuid import UUID
+from uuid import UUID, uuid5
 
 import psycopg
 
@@ -52,6 +52,28 @@ def zapis_verzi(
     ).fetchone()
     klic = row["klic"] if isinstance(row, Mapping) else row[0]
     return klic if isinstance(klic, UUID) else UUID(str(klic))
+
+
+NAMESPACE_PVK = UUID("6f1c2a52-1b8e-4f43-9d36-0d8e52b8a6a1")
+
+
+def klic_entity(tabulka: str, prirozeny_klic: str) -> UUID:
+    """Stabilní klíč entity odvozený z přirozeného klíče (UUIDv5) – opakovaný běh nezaloží duplicitu."""
+    return uuid5(NAMESPACE_PVK, f"{tabulka}:{prirozeny_klic}")
+
+
+def zapis_entitu(
+    conn: psycopg.Connection,
+    tabulka: str,
+    prirozeny_klic: str,
+    data: Mapping,
+    valid_from: date,
+    valid_to: date | None = None,
+) -> UUID:
+    """Zapíše verzi entity s deterministickým klíčem (idempotentní vůči opakovanému běhu)."""
+    klic = klic_entity(tabulka, prirozeny_klic)
+    conn.execute("INSERT INTO core.entita (id, typ) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING", (klic, tabulka))
+    return zapis_verzi(conn, tabulka, {**data, f"{tabulka}_id": str(klic)}, valid_from, valid_to)
 
 
 def subjekt_pro_ico(conn: psycopg.Connection, ico: str) -> UUID:

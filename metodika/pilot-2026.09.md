@@ -60,10 +60,20 @@ hodnotu“:
 
 ## P4 – příjemci dotací, spárovatelnost na IČO přes ARES
 
-Z každého registru (IS ReD, seznam operací EU 2021–2027, SZIF) prostý náhodný výběr 200 příjemců.
-Spárovatelný = IČO existuje v ARES a název se shoduje (podobnost ≥ 0,80 po normalizaci právní formy),
-nebo příjemce bez IČO (právnická osoba) má v ARES jednoznačnou shodu názvu. Fyzické osoby bez IČO
-jsou nespárovatelné z definice a jejich identifikační údaje se neukládají.
+Registry: IS ReD, seznam operací EU 2021–2027, SZIF. Rámce:
+* IS ReD: příjemci s alespoň jednou dotací podepsanou v posledních 12 měsících dostupných dat
+  (konec okna = nejnovější datum podpisu nejpozději k datu exportu; podpisy „po exportu“ jsou
+  chyba dat a počítají se zvlášť);
+* seznam operací 21+: všichni unikátní příjemci v posledním měsíčním souboru;
+* SZIF: seznam příjemců za poslední fiskální rok (pokud je dostupný).
+
+Fyzické osoby bez IČO jsou mimo rozsah platformy a z definice nespárovatelné: jejich podíl se
+spočítá přesně na celém rámci (bez výběru) a jejich identifikační údaje se neukládají. Prostý náhodný
+výběr 200 příjemců se losuje z příjemců v rozsahu (právnické osoby a podnikající fyzické osoby s IČO).
+Spárovatelný = IČO existuje v ARES a název se shoduje (podobnost ≥ 0,80 po normalizaci právní formy,
+diakritiky a interpunkce), nebo příjemce bez IČO (právnická osoba) má v ARES jednoznačnou shodu názvu.
+U podnikajících fyzických osob se název neporovnává (ukládá se jen IČO); shoda = IČO existuje v ARES
+a ARES je vede jako fyzickou osobu.
 
 ## Prahy doporučení (stanovené před měřením)
 

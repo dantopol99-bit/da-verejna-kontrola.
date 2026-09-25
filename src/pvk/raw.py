@@ -76,12 +76,13 @@ def zapis_stazeni(
     chyba: str | None = None,
     metoda: str = "GET",
     parametry: Mapping | None = None,
+    hlavicky: Mapping[str, str] | None = None,
 ) -> int:
     row = conn.execute(
         """
         INSERT INTO raw.stazeni (zdroj, url, metoda, parametry, cas_stazeni, http_status, sha256, velikost,
-                                 soubor, content_type, chyba)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                 soubor, content_type, chyba, hlavicky)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -96,6 +97,7 @@ def zapis_stazeni(
             soubor,
             content_type,
             chyba,
+            _jsonb(dict(hlavicky)) if hlavicky else None,
         ),
     ).fetchone()
     return row["id"] if isinstance(row, Mapping) else row[0]

@@ -128,3 +128,100 @@ Thawte TLS RSA CA G1; bez něj ověření TLS selže.
 **Rozhodnutí.** Certifikát (z oficiálního úložiště DigiCert, SHA-256 otisk v souboru) je
 v `certs/extra-intermediates.pem` a přidává se ke kořenům prostředí. Ověřování TLS se nikdy
 nevypíná.
+
+## D-012 Registr smluv v pilotu: oficiální data, při nedostupnosti zrcadlo Hlídač státu
+
+**Kontext.** `data.smlouvy.gov.cz` ani `smlouvy.gov.cz` nebyly z prostředí pilotu dosažitelné
+(TLS spojení ukončeno bez odpovědi; monitoring Hlídače státu ukazuje v týdnu pilotu nedostupnost
+registru 58 % času i z ČR). Bez registru smluv nelze změřit P1–P3.
+**Rozhodnutí.** `PVK_RS_BACKEND=auto`: nejdřív rychlý test oficiálních dat (výsledek v `raw.stazeni`),
+při neúspěchu zrcadlo Hlídač státu (CC BY 3.0 CZ; `robots.txt` stránky detailu a vyhledávání
+nezakazuje). Z Hlídače bereme jen údaje registru smluv (metadata, kopie příloh); jeho odvozené údaje
+(K-Index, politické vazby, sponzoring) ignorujeme. Kopie přílohy se přijme jen při shodě SHA-256
+s hashem z metadat RS. Dotazy šetrně: ≥ 1 s mezi dotazy, cache v `raw.stazeni`.
+**Důsledky.** Částky ze zrcadla jsou zaokrouhlené na celé Kč (tolerance 1 Kč při kontrolách).
+Oficiální cesta (denní dumpy) je implementovaná a otestovaná na syntetickém dumpu podle XSD;
+po obnovení dostupnosti ji pipeline použije sama. Registr nemá vyhledávací API – vyhledávání pro P2
+jde vždy přes zrcadlo; v produkci nahradí plný import dumpů do `raw`/`core`.
+
+## D-013 Veřejné zakázky z API webu VVZ
+
+**Kontext.** Otevřená data ISVZ (`isvz.nipez.cz/opendata`) ani NEN nebyly dosažitelné. Web VVZ
+(`vvz.nipez.cz`) je aplikace nad veřejným JSON API `api.vvz.nipez.cz` (bez přihlášení).
+**Rozhodnutí.** Pilot čte oznámení o výsledku (eForms 29–35) z `/api/submissions/search` a úplný
+formulář z `/api/submissions/children/search`. API není formálně dokumentováno jako otevřená data –
+používáme ho šetrně a v `docs/sources.md` to uvádíme. Oznámení z NEN se do VVZ odesílají, takže
+VVZ pokrývá i zakázky z NEN.
+**Důsledky.** Klíčový nález: pole eForms **BT-151 (URL smlouvy)** často obsahuje přímý odkaz do
+registru smluv – doložená vazba zakázka → smlouva bez heuristiky.
+
+## D-014 SZIF: anti-bot výzva se neobchází
+
+**Rozhodnutí.** Otevřená data SZIF (`szif.gov.cz/cs/CmOpendata`) vracejí JavaScriptovou výzvu F5 TSPD
+místo souboru. Neobcházíme ji (pravidlo 1 – jen legálně dostupná data, neobcházet ochrany).
+Registr je v P4 veden jako nedostupný; řešení: ověřit z české sítě, případně požádat SZIF o přímý
+přístup k souborům otevřených dat.
+
+## D-015 Stabilní klíče entit z přirozených klíčů
+
+**Rozhodnutí.** Pipeline zakládá entity `core` s klíčem UUIDv5 z přirozeného klíče
+(např. `tok:vvz:F2025-052084:CON-0001`), `pvk.core.zapis_entitu()`. Opakovaný běh tak nezaloží
+duplicitní entitu a díky idempotenci `core.zapis_verzi()` ani novou verzi.
+
+## D-016 P4: fyzické osoby bez IČO se nelosují, jejich podíl se počítá na celém rámci
+
+**Kontext.** První běh P4 ukázal, že v IS ReD tvoří fyzické osoby bez IČO (právní forma 998)
+naprostou většinu příjemců posledních 12 měsíců dat (183 z 200 vylosovaných). Takové příjemce nelze
+z definice napojit na IČO a jsou mimo rozsah platformy.
+**Rozhodnutí.** (Změna návrhu po prvním běhu, uvedeno transparentně.) Složení rámce (PO/FO × s IČO/
+bez IČO) se počítá přesně na celém rámci; vzorek 200 pro párování se losuje z příjemců v rozsahu
+(právnické osoby a podnikající fyzické osoby s IČO). Report uvádí obě čísla. Záznamy z prvního běhu
+zůstávají v `raw` (vrstva je pouze pro INSERT) a jsou identifikovatelné časem vložení.
+
+## D-017 P1 ze zrcadla: výběr po skupinách čtyř ID
+
+**Kontext.** ID verzí v RS se přidělují s krokem 4; zbytek po dělení 4 se v čase mění (v období
+pilotu 1, 0, 3). Losování jednotlivých ID by stálo ~4× více dotazů, omezení na jeden zbytek by
+vynechalo části období.
+**Rozhodnutí.** Losuje se skupina čtyř po sobě jdoucích ID (rovnoměrně v rozsahu období s rezervou),
+v ní se zkouší ID v pořadí podle zbytku nejbližšího známého ID; skupina bez verze, neplatná verze
+nebo verze mimo období se odmítne. Ve skupině je nejvýš jedna verze, výsledkem je prostý náhodný
+výběr z platných verzí v období.
+
+## D-018 P2: doložená vs. pravděpodobná vazba zakázka → smlouva
+
+**Rozhodnutí.** Doložená (skóre 1): BT-151 odkazuje na existující záznam RS, nebo je evidenční
+číslo zakázky (Z…) nalezeno v záznamu RS se shodným IČO zadavatele. Pravděpodobná: kandidát ze
+zrcadla RS se shodným IČO zadavatele i dodavatele a datem podpisu v okně ±30 dní od BT-145;
+skóre = 0,4 + 0,3 × shoda data + 0,3 × shoda částky (tolerance 10 %, přepočet DPH 21/12 %),
+práh 0,70, maximum 0,999. Všechny vazby se zapisují do `core.tok_zdroj`; heuristika se kontroluje
+na doloženě spárovaných zakázkách.
+
+## D-019 Výjimky k potvrzení bez citací textu smluv
+
+**Rozhodnutí.** `docs/pilot_vyjimky.csv` obsahuje hodnoty (částky, data, IČO), odkazy na záznam
+a originál a návrh verdiktu, ale ne úryvky textu smluv: úryvky mohou obsahovat osobní údaje
+a technické formulace, které by publikační brána (oprávněně) zachytila. U částek se uvádí klíčové
+slovo cenového kontextu. Úryvky jako důkaz zůstávají lokálně v `data/pilot/*.json`.
+
+## D-020 Prahy doporučení se stanovují před měřením
+
+**Rozhodnutí.** Prahy pro doporučení (a) toky vs. případy a (b) indikátor závislosti jsou
+v `metodika/pilot-2026.09.json` (`doporuceni`) a report je aplikuje mechanicky; komentář je oddělený.
+
+## D-021 Log stažení nese vybrané HTTP hlavičky
+
+**Rozhodnutí.** Migrace 0005 přidává `raw.stazeni.hlavicky` (Last-Modified, ETag, X-Total-Count,
+Content-Range…). Doklad stavu zdroje v okamžiku stažení; `X-Total-Count` určuje rámec výběru ve VVZ.
+
+## D-022 IS ReD: okno podle data exportu
+
+**Kontext.** V `dotace.csv` se vyskytují data podpisu po datu exportu (např. 2030-06-17) – chyba dat.
+**Rozhodnutí.** Konec okna „posledních 12 měsíců dat“ = nejnovější datum podpisu nejpozději k datu
+exportu; podpisy po exportu se počítají a uvádějí jako nález kvality dat.
+
+## D-023 Výsledky měření pilotu v `ind.indikator_vysledek`
+
+**Rozhodnutí.** Každé číslo pilotu se zapisuje jako výsledek s kódem `pilot_*`, obdobím, počtem
+případů (n), verzí metodiky a neutrálním textem; prochází tak stejnými podmínkami publikace jako
+budoucí indikátory (minimální základ 30 případů).
