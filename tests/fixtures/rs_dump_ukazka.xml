@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Syntetický dump registru smluv podle struktury XSD ISRS (smyšlená data pro testy parseru). -->
+<dump xmlns="http://portal.gov.cz/rejstriky/ISRS/1.2/">
+  <mesic>9</mesic>
+  <rok>2026</rok>
+  <casGenerovani>2026-09-02T02:00:00+02:00</casGenerovani>
+  <dokoncenyMesic>1</dokoncenyMesic>
+  <zaznam>
+    <identifikator>
+      <idSmlouvy>37303957</idSmlouvy>
+      <idVerze>39673953</idVerze>
+    </identifikator>
+    <odkaz>https://smlouvy.gov.cz/smlouva/39673953</odkaz>
+    <casZverejneni>2026-09-01T08:55:25+02:00</casZverejneni>
+    <smlouva>
+      <subjekt>
+        <datovaSchranka>ubnbxnt</datovaSchranka>
+        <nazev>Město Příkladov</nazev>
+        <ico>00255513</ico>
+        <adresa>Náměstí 1, 34101 Příkladov</adresa>
+        <platce>true</platce>
+      </subjekt>
+      <smluvniStrana>
+        <datovaSchranka>yjy8hu3</datovaSchranka>
+        <nazev>Stavby Příklad s.r.o.</nazev>
+        <ico>45023522</ico>
+        <adresa>Ulice 373, 38601 Strakonice</adresa>
+        <prijemce>true</prijemce>
+      </smluvniStrana>
+      <predmet>Smlouva o dílo – rekonstrukce hřiště</predmet>
+      <datumUzavreni>2026-08-31</datumUzavreni>
+      <cisloSmlouvy>SOD-2026-17</cisloSmlouvy>
+      <hodnotaBezDph>20068576.42</hodnotaBezDph>
+      <hodnotaVcetneDph>24282977.47</hodnotaVcetneDph>
+    </smlouva>
+    <prilohy>
+      <priloha>
+        <nazevSouboru>SOD.pdf</nazevSouboru>
+        <hash algoritmus="sha256">cce8e2e21834acf2c46843248dd8249fc1726263df54aaa4b9d8dc1d30aa17c1</hash>
+        <odkaz>https://smlouvy.gov.cz/smlouva/soubor/47825737/SOD.pdf</odkaz>
+      </priloha>
+    </prilohy>
+    <platnyZaznam>1</platnyZaznam>
+  </zaznam>
+  <zaznam>
+    <identifikator>
+      <idSmlouvy>37303961</idSmlouvy>
+      <idVerze>39673961</idVerze>
+    </identifikator>
+    <odkaz>https://smlouvy.gov.cz/smlouva/39673961</odkaz>
+    <casZverejneni>2026-09-01T09:10:00+02:00</casZverejneni>
+    <smlouva>
+      <subjekt>
+        <nazev>Obec Vzorová</nazev>
+        <ico>00006947</ico>
+      </subjekt>
+      <smluvniStrana>
+        <nazev>Fyzická osoba</nazev>
+        <prijemce>true</prijemce>
+      </smluvniStrana>
+      <predmet>Nájemní smlouva – pozemek</predmet>
+      <datumUzavreni>2026-08-20</datumUzavreni>
+      <ciziMena>
+        <hodnota>1200</hodnota>
+        <mena>EUR</mena>
+      </ciziMena>
+    </smlouva>
+    <prilohy/>
+    <platnyZaznam>0</platnyZaznam>
+  </zaznam>
+</dump>

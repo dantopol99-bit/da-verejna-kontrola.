@@ -33,7 +33,8 @@ class Nastaveni:
     pilot_seed: int
     pilot_obdobi_od: date
     pilot_obdobi_do: date
-    rs_backend: str
+    rs_backend: str  # provoz: jen "oficialni" (D-030)
+    pilot_rs_backend: str  # pilot: "auto" = oficiální, při nedostupnosti zrcadlo
     kotva: str
     kotva_database_url: str | None
 
@@ -51,7 +52,8 @@ def nastaveni() -> Nastaveni:
         pilot_seed=int(os.environ.get("PVK_PILOT_SEED", "20260925")),
         pilot_obdobi_od=date.fromisoformat(os.environ.get("PVK_PILOT_OBDOBI_OD", "2025-09-01")),
         pilot_obdobi_do=date.fromisoformat(os.environ.get("PVK_PILOT_OBDOBI_DO", "2026-09-01")),
-        rs_backend=os.environ.get("PVK_RS_BACKEND", "auto"),
+        rs_backend=os.environ.get("PVK_RS_BACKEND", "oficialni"),
+        pilot_rs_backend=os.environ.get("PVK_PILOT_RS_BACKEND", "auto"),
         kotva=os.environ.get("PVK_KOTVA", "ares"),
         kotva_database_url=os.environ.get("KOTVA_DATABASE_URL"),
     )

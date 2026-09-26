@@ -8,13 +8,19 @@
     "min_zaklad": null,
     "obdobi_od": "2025-09-01",
     "obdobi_do": "2026-09-01",
+    "p1_metadata": {
+      "n": 300,
+      "n_pozadovano": 500,
+      "poznamka": "přeměření P1 po pilotu jen z metadat (bez textu příloh); prvních 200 záznamů = vzorek pilotu; vzorek zmenšen z 500 kvůli časovému rozpočtu session"
+    },
     "p1": {
       "n": 200,
       "max_stran_ocr": 12,
       "okno_kontextu_castky": 160
     },
     "p2": {
-      "n": 50,
+      "n": 60,
+      "n_pozadovano": 100,
       "formulare_vysledku": ["29", "30", "31", "32", "33", "34", "35"],
       "okno_dni_datum_uzavreni": 30,
       "okno_dni_bez_data_uzavreni": [-180, 7],

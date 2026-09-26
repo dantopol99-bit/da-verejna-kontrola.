@@ -26,8 +26,9 @@ from pvk.ico import ico_platne, normalizuj_ico
 
 ARES_URL = "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest"
 
-# Právní formy fyzických osob (číselník ČSÚ): 100–108 podnikající FO, 424/425 zahraniční FO.
-PRAVNI_FORMY_FO = frozenset({"100", "101", "102", "103", "104", "105", "106", "107", "108", "424", "425"})
+# Právní formy fyzických osob (číselník ČSÚ): 100–108 podnikající FO, 424/425 zahraniční FO,
+# 998 "Fyzická osoba" (nepodnikající; používá např. IS ReD).
+PRAVNI_FORMY_FO = frozenset({"100", "101", "102", "103", "104", "105", "106", "107", "108", "424", "425", "998"})
 
 
 @dataclass(frozen=True)

@@ -23,14 +23,36 @@ Rámec: platné verze záznamů registru smluv zveřejněné ve sledovaném obdo
 Měří se:
 1. podíl záznamů, kde metadata obsahují IČO publikujícího subjektu, IČO alespoň jedné smluvní strany
    a částku (bez DPH, s DPH nebo v cizí měně);
-2. podíl záznamů bez částky v metadatech, u nichž text přílohy obsahuje částku v cenovém kontextu
-   (cena, hodnota, odměna, úhrada, nájemné, celkem, …);
+2. podíl záznamů bez částky v metadatech, u nichž text přílohy obsahuje cenu plnění: částku
+   v cenovém kontextu (cena, hodnota, odměna, úhrada, nájemné, pojistné, celkem, …), která není
+   jednotkovou sazbou (Kč/m², Kč za hodinu, hodinová sazba), sankcí (smluvní pokuta, úrok
+   z prodlení), prahem („vyšší než“, „nad“, „minimálně“ před částkou), spoluúčastí či limitem
+   pojištění, jistotou ani kaucí (rozhoduje věta před částkou a jednotka bezprostředně za ní);
 3. podíl záznamů se znečitelněním (značky typu „XXXXX“, „█“, „anonymizováno“, černé obdélníky
    ve vektorovém PDF, černé bloky ve skenu).
 
-Křížová kontrola metadata × text originálu: IČO stran, částka (s tolerancí 1 Kč a přepočtem DPH),
-datum uzavření (poslední datum podpisu v textu). Neshody jdou do `docs/pilot_vyjimky.csv`
-s návrhem verdiktu.
+Křížová kontrola metadata × text originálu (text: textová vrstva PDF, u stran bez textu OCR):
+
+* **částka** – hodnota z metadat (bez DPH / s DPH) se hledá v textu v libovolném běžném zápisu
+  (i bez označení měny v tabulkách), s tolerancí 1 Kč (zrcadlo zaokrouhluje), po přepočtu DPH
+  (21/12/15/10 %), jako násobek periodické částky (12–60 měsíců; 60 = konvence RS „hodnota za 5 let“)
+  nebo jako součet 2–3 cenových položek textu. Jinak „neshoda“ (uvádí-li text jinou cenu plnění),
+  resp. „text bez ceny“; číslo navazující na písmeno („m3 EUR“) není částka;
+* **IČO** – každé IČO z metadat se hledá v textu (i s mezerami mezi číslicemi, bez úvodních nul za
+  štítkem „IČ“); u chybějícího se uvede, zda text obsahuje jiné platné IČO;
+* **datum uzavření** – datem podpisu je jen „V ⟨Místo⟩ dne …“, „Datum podpisu: …“ a razítko
+  elektronického podpisu (ne „usnesením … ze dne“). Rozpor = metadata uvádějí datum dřívější než
+  poslední podpis v textu; je-li datum v metadatech pozdější než všechny podpisy v textu, nelze ověřit;
+* **částka jen v příloze** – metadata bez částky, text uvádí částku v cenovém kontextu.
+
+Znečitelnění: textové značky (XXXXX, █, *****; slovní značky „anonymizováno“, „znečitelněno“,
+„osobní údaj“ jen jako zástupný údaj – v závorce, za dvojtečkou nebo samostatně na řádku, ne
+doložka o uveřejnění typu „údaje, které by jinak podléhaly znečitelnění“), název souboru
+(anonym, redig…), tmavý vyplněný obdélník ve vektorovém PDF velikosti řádku textu (výška 5–20 pt,
+mimo záhlaví a zápatí, na řádku s textem, bez čitelného světlého textu uvnitř – to je záhlaví
+tabulky), plně černý blok ve skenu (výplň ≥ 97 %, šířka ≤ 75 % strany).
+
+Neshody jdou do `docs/pilot_vyjimky.csv` s návrhem verdiktu.
 
 ## P2 – 50 zakázek z VVZ, párování se smlouvami v registru smluv
 
@@ -50,20 +72,37 @@ formuláře).
 
 ## P3 – roční hodnota u opakovaného / víceletého plnění
 
-Z výběru P1 se vyberou smlouvy s opakovaným nebo víceletým plněním (doba neurčitá, doba určitá
-delší než rok, periodické platby, nájem, servis, licence, …). Verdikt „lze spolehlivě určit roční
-hodnotu“:
-* **ano** – text uvádí částku za rok, nebo měsíční/čtvrtletní částku jednoznačně přepočitatelnou,
-  nebo celkovou cenu výslovně za celou dobu trvání spolu s pevnou dobou trvání;
-* **ne** – doba neurčitá bez periodické částky, jen jednotkové ceny bez objemu, nebo žádná částka;
-* **nejasné** – protichůdné údaje, více různých periodických částek, nečitelný text.
+Z výběru P1 (čitelný text) se vyberou smlouvy s opakovaným nebo víceletým plněním:
+* doba neurčitá ve větě o smlouvě/nájmu/objednávce (ne „souhlas se zveřejněním na dobu neurčitou“),
+* doba plnění ≥ 366 dní, nebo ≥ 180 dní u průběžného plnění (služby, nájem, licence, servis) –
+  doba se bere jen z věty o plnění, ne ze záruky, udržitelnosti projektu, archivace, mlčenlivosti,
+* periodická částka (ročně / měsíčně / čtvrtletně; bez jednotkových cen typu Kč/m² a částek < 500 Kč),
+* typicky opakované plnění (nájem, pacht, předplatné, paušál, pravidelný servis).
+
+Verdikt „lze spolehlivě určit roční hodnotu“:
+* **ano** – jednoznačná periodická částka (varianty bez DPH / s DPH / samotná DPH se slučují)
+  přepočtená na rok; nebo doba plnění ≤ 1 rok s cenou za celé plnění; nebo celková cena výslovně
+  za celou dobu trvání spolu s pevnou délkou trvání;
+* **ne** – doba neurčitá bez periodické částky, jen jednotkové ceny, nebo text bez ceny;
+* **nejasné** – více různých periodických částek, víceletá smlouva s cenou bez vazby na dobu trvání,
+  opakované plnění bez údaje o periodě a délce.
 
 ## P4 – příjemci dotací, spárovatelnost na IČO přes ARES
 
-Z každého registru (IS ReD, seznam operací EU 2021–2027, SZIF) prostý náhodný výběr 200 příjemců.
-Spárovatelný = IČO existuje v ARES a název se shoduje (podobnost ≥ 0,80 po normalizaci právní formy),
-nebo příjemce bez IČO (právnická osoba) má v ARES jednoznačnou shodu názvu. Fyzické osoby bez IČO
-jsou nespárovatelné z definice a jejich identifikační údaje se neukládají.
+Registry: IS ReD, seznam operací EU 2021–2027, SZIF. Rámce:
+* IS ReD: příjemci s alespoň jednou dotací podepsanou v posledních 12 měsících dostupných dat
+  (konec okna = nejnovější datum podpisu nejpozději k datu exportu; podpisy „po exportu“ jsou
+  chyba dat a počítají se zvlášť);
+* seznam operací 21+: všichni unikátní příjemci v posledním měsíčním souboru;
+* SZIF: seznam příjemců za poslední fiskální rok (pokud je dostupný).
+
+Fyzické osoby bez IČO jsou mimo rozsah platformy a z definice nespárovatelné: jejich podíl se
+spočítá přesně na celém rámci (bez výběru) a jejich identifikační údaje se neukládají. Prostý náhodný
+výběr 200 příjemců se losuje z příjemců v rozsahu (právnické osoby a podnikající fyzické osoby s IČO).
+Spárovatelný = IČO existuje v ARES a název se shoduje (podobnost ≥ 0,80 po normalizaci právní formy,
+diakritiky a interpunkce), nebo příjemce bez IČO (právnická osoba) má v ARES jednoznačnou shodu názvu.
+U podnikajících fyzických osob se název neporovnává (ukládá se jen IČO); shoda = IČO existuje v ARES
+a ARES je vede jako fyzickou osobu.
 
 ## Prahy doporučení (stanovené před měřením)
 
