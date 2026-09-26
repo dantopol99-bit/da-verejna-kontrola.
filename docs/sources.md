@@ -54,6 +54,7 @@ Legenda dostupnosti z prostředí pilotu: ✅ dostupné · ⛔ nedostupné (spoj
 | Formuláře výsledku | eForms 29 (obecná), 30 (sektorová), 31 (obrana), 32 (koncese), 33–35 (zjednodušený režim), 36–37 soutěž o návrh; 38–40, E6 změny závazku |
 | Rozsah | ve sledovaném období 1. 9. 2025 – 31. 8. 2026: 69 837 uveřejnění, z toho 35 786 oznámení o výsledku (29–35) |
 | Poznámka | API je veřejný backend webu, není formálně dokumentováno jako otevřená data. Používáme šetrně (≥ 0,35 s mezi dotazy, cache). |
+| Detail ve sběru | zdroj `vvz_detail` (`make sber`, hned po `vvz`): `children/search` pro každý formulář období, navazuje na předchozí běhy, `LIMIT_MINUT=N` omezí dobu běhu (D-037); kontakty a údaje o skutečných majitelích se neukládají (D-038) |
 | Dostupnost z pilotu | ✅ |
 
 ## 3. NEN a otevřená data ISVZ
@@ -74,6 +75,7 @@ Legenda dostupnosti z prostředí pilotu: ✅ dostupné · ⛔ nedostupné (spoj
 | IS ReD – otevřená data | Generální finanční ředitelství / MF; katalog CKAN `https://red.fs.gov.cz/opendata/` (dříve `red.financnisprava.cz`), API `https://red.fs.gov.cz/opendata/api/3/action/package_show?id={balicek}` |
 | Hlavní tabulky (CSV.gz, UTF-8) | `prijemce-pomoci` → `prijemce.csv.gz` (≈ 67 MB, 1,1 mil. řádků: `iriPrijemce, ico, obchodniNazev, jmeno, prijmeni, rokNarozeni, iriPravniForma, iriStat…`), `dotace` → `dotace.csv.gz` (≈ 272 MB, 2,35 mil.: `iriDotace, iriPrijemce, kod, identifikator, nazev, podpisDatum…`), `rozhodnuti` (≈ 273 MB), `rozpoctove-obdobi` (≈ 296 MB), číselníky (`pravni-forma`, `poskytovatel-dotace`, `operacni-program`…) a RDF (N3) varianty |
 | Aktualizace | export k 21. 2. 2026 (soubory upraveny 24. 3. 2026) – data mají zpoždění |
+| **Zpoždění dat** (zjištěno 26. 9. 2026) | export k **21. 2. 2026** (soubory v katalogu upraveny 24. 3. 2026), **poslední datum podpisu** nejpozději k exportu **16. 12. 2025** → data končí ≈ 9 měsíců před dnem ověření; mezi posledním podpisem a exportem 2 měsíce, mezi exportem a zveřejněním další měsíc. Poslední měsíce jsou neúplné (podpisy: 1. pol. 2025 1 300–2 800 měsíčně, 8/2025 746, 9/2025 873, 10/2025 286, 11/2025 77, 12/2025 4). Pravidlo: každý dotační údaj nese stav k datu, chybějící dotace se nevykládá jako žádná dotace (D-039) |
 | TLS | server neposílá mezilehlý certifikát Thawte TLS RSA CA G1 → doplněn v `certs/extra-intermediates.pem` |
 | Dostupnost z pilotu | ✅ |
 | Katalog MF | `https://data.mf.gov.cz/` (přehled datových sad ReD) |
@@ -117,6 +119,7 @@ změny kódu z české sítě** – stačí `make sber` (nebo `make sber ZDROJE=
 | `nen` | `https://nen.nipez.cz/profily-zadavatelu-platne` | ⛔ `ConnectionError … Connection reset by peer` | seznam platných profilů → `/profil/{kód}/XMLdataVZ?od=…&do=…`, záznam = `<zakazka>` |
 | `isvz` | `https://isvz.nipez.cz/opendata` | ⛔ `ConnectionError … Connection reset by peer` | měsíční soubory otevřených dat RVZ dohledané na stránce, záznam = položka souboru |
 | `vvz` | `https://api.vvz.nipez.cz/api/submissions/search` | ✅ | formuláře uveřejněné v období (250 na stránku), záznam = formulář (ID = evidenční číslo `F…`) |
+| `vvz_detail` | `https://api.vvz.nipez.cz/api/submissions/search` | ✅ | detail (eForms) každého formuláře období ze souhrnů `vvz`, záznam = odpověď `children/search` (ID = evidenční číslo `F…`); navazuje (D-037) |
 | `cedr` | `https://cedropendata.mfcr.cz/c3lod/cedr/` | ⛔ `ProxyError … 502 Bad Gateway` (spojení se serverem nevzniklo) | `Dotace`, `PrijemcePomoci`, `Rozhodnuti` (CSV.gz); historická data, nástupce IS ReD |
 | `red` | `https://red.fs.gov.cz/opendata/api/3/action/package_show?id=dotace` | ✅ | `dotace` podepsané v okně + jejich `prijemce-pomoci` a `rozhodnuti` (CSV.gz z katalogu CKAN) |
 | `dotaceeu_2127` | stránka seznamu operací na dotaceeu.cz | ✅ | nejnovější měsíční XLSX „Seznam operací 21+“, záznam = řádek (projekt × zakázka) |

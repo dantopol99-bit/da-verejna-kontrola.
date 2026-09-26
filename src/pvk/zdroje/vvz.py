@@ -235,3 +235,111 @@ class VVZ:
         if odp.status != 200:
             return odp, []
         return odp, json.loads(odp.obsah())
+
+
+# --- detail formuláře ze sběru (raw.zaznam, zdroj vvz_detail) -------------------------------------
+
+DRUHY_RIZENI = {  # BT-105 (číselník EU procurement-procedure-type)
+    "open": "otevřené", "restricted": "užší", "neg-w-call": "jednací s uveřejněním",
+    "neg-wo-call": "jednací bez uveřejnění", "comp-dial": "soutěžní dialog", "innovation": "inovační partnerství",
+    "comp-tend": "zjednodušené / národní", "oth-single": "jiné jednofázové", "oth-mult": "jiné vícefázové",
+}
+
+
+def _hodnoty(obj, klic: str) -> list:
+    """Všechny hodnoty pole `klic` ve stromu eForms (v pořadí výskytu; seznamy se rozbalí)."""
+    nalezeno: list = []
+    if isinstance(obj, list):
+        for x in obj:
+            nalezeno += _hodnoty(x, klic)
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == klic:
+                nalezeno += seznam(v)
+            else:
+                nalezeno += _hodnoty(v, klic)
+    return nalezeno
+
+
+def _castky(hodnoty) -> list[tuple[Decimal, str | None]]:
+    """Vyplněné částky jako (hodnota, měna); nečíselná hodnota se vynechá (neúplný údaj)."""
+    vysledek = []
+    for h in hodnoty:
+        try:
+            castka = _castka(h)
+        except (ArithmeticError, ValueError):
+            continue
+        if castka[0] is not None:
+            vysledek.append(castka)
+    return vysledek
+
+
+def _pocet(hodnota) -> int | None:
+    try:
+        return int(Decimal(str(hodnota)))
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def _unikatni(hodnoty) -> list:
+    return list(dict.fromkeys(h for h in hodnoty if h not in (None, "")))
+
+
+def udaje_detailu(detail: dict, souhrn: dict | None = None) -> dict:
+    """Údaje z detailu formuláře (obsah záznamu raw `vvz_detail`) a souhrnu (záznam raw `vvz` téhož
+    formuláře): IČO zadavatelů a vybraných dodavatelů, předpokládaná hodnota, vysoutěžená cena (hodnota
+    vítězné nabídky BT-720, jinak celková hodnota výsledku BT-161), počet nabídek (BT-759 u BT-760 =
+    tenders), druh řízení (BT-105), lhůty (BT-131 nabídky, BT-1311 žádosti o účast), CPV (BT-262),
+    evidenční číslo zakázky ve VVZ a identifikátor NIPEZ. Částky jsou (hodnota, měna) bez sčítání."""
+    data = (souhrn or {}).get("data") or {}
+    deti = [d for d in seznam(detail.get("deti")) if isinstance(d, dict) and isinstance(d.get("data"), dict)]
+    root = next((d["data"]["ND-Root"] for d in deti if "ND-Root" in d["data"]), None)
+    metadata = next((d["data"]["metadata"] for d in deti if isinstance(d["data"].get("metadata"), dict)), {})
+    u = {
+        "formular": detail.get("formular"),
+        "druh_formulare": data.get("druhFormulare"),
+        "ev_cislo_zakazky": data.get("evCisloZakazkyVvz") or None,
+        "identifikator_nipez": (metadata.get("identifikatoryNipez") or {}).get("identifikatorNipez"),
+        "eforms": root is not None,
+        "vysledek": False,
+        "vybran_dodavatel": False,
+        "ico_zadavatelu": [],
+        "ico_dodavatelu": [],
+        "predpokladana_hodnota": [],
+        "vysoutezena_cena": [],
+        "pocet_nabidek": [],
+        "druh_rizeni": None,
+        "lhuty": {"podani_nabidek": [], "zadosti_o_ucast": []},
+        "cpv": [],
+    }
+    if root is None:
+        return u
+    oznameni = parsuj_eforms({"id": detail.get("submission"), "variableId": detail.get("formular"), "data": data},
+                             deti)
+    orgs = _organizace(root)
+    vysledek = root.get("ND-RootExtension", {}).get("ND-NoticeResult", {})
+    strany = {tp.get("OPT-210-Tenderer"): [t.get("OPT-300-Tenderer") for t in seznam(tp.get("ND-Tenderer"))]
+              for tp in seznam(vysledek.get("ND-TenderingParty"))}
+    nabidky = {t.get("OPT-321-Tender"): t for t in seznam(vysledek.get("ND-LotTender"))}
+    vitezne = [nabidky[r.get("OPT-320-LotResult")]
+               for lr in seznam(vysledek.get("ND-LotResult")) if lr.get("BT-142-LotResult") == "selec-w"
+               for r in seznam(lr.get("ND-LotResultTenderReference")) if r.get("OPT-320-LotResult") in nabidky]
+    dodavatele = [orgs[o].ico for t in vitezne for o in strany.get(t.get("OPT-310-Tender"), []) if o in orgs]
+    dodavatele += [o.ico for s in (oznameni.smlouvy if oznameni else []) for o in s.dodavatele]
+    cena = _castky(t.get("BT-720-Tender") for t in vitezne) or _castky([vysledek.get("BT-161-NoticeResult")])
+    odhad = _hodnoty(root, "BT-27-Procedure") or _hodnoty(root, "BT-27-Lot")
+    u.update(
+        vysledek=root.get("BT-03-notice") == "result",
+        vybran_dodavatel=bool(oznameni and oznameni.vybran_dodavatel),
+        ico_zadavatelu=_unikatni(z.ico for z in (oznameni.zadavatele if oznameni else [])),
+        ico_dodavatelu=_unikatni(dodavatele),
+        predpokladana_hodnota=_castky(odhad),
+        vysoutezena_cena=cena,
+        pocet_nabidek=[n for p in _hodnoty(root, "ND-ReceivedSubmissions") if isinstance(p, dict)
+                       and p.get("BT-760-LotResult") == "tenders" and (n := _pocet(p.get("BT-759-LotResult"))) is not None],
+        druh_rizeni=next(iter(_hodnoty(root, "BT-105-Procedure")), None),
+        lhuty={"podani_nabidek": _unikatni(_hodnoty(root, "BT-131(d)-Lot")),
+               "zadosti_o_ucast": _unikatni(_hodnoty(root, "BT-1311(d)-Lot"))},
+        cpv=_unikatni(_hodnoty(root, "BT-262-Procedure") + _hodnoty(root, "BT-262-Lot")),
+    )
+    return u

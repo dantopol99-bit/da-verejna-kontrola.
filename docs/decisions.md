@@ -352,3 +352,47 @@ platných profilů (včetně stránek; `PVK_SBER_NEN_PROFILY` omezí výběr) a 
 chyba v evidenci běhu, ne pád. Stahovače jsou otestované na vzorových datech (`tests/test_sber.py`).
 **Důsledky.** První běh z české sítě ověří předpoklady o struktuře; případná úprava bude malá a lokální
 (parser záznamů, vzor názvu souboru).
+
+## D-037 Detail formulářů VVZ: navazující sběr
+
+**Kontext.** D-034 odložil úplný obsah formulářů eForms (≈ 5 400 dotazů měsíčně). Z detailu jsou IČO
+zadavatele a dodavatele, předpokládaná hodnota, vysoutěžená cena, počet nabídek, druh řízení, lhůty a CPV.
+**Rozhodnutí.** Samostatný zdroj `vvz_detail` (stejné API, `/api/submissions/children/search?submission={id}`);
+záznam raw = odpověď API pro jeden formulář, ID = evidenční číslo formuláře (shodné se souhrnem ve zdroji
+`vvz`). Seznam formulářů se bere ze souhrnů v raw za období (proto v `make sber` běží hned po `vvz`),
+v pořadí evidenčních čísel. **Navazování:** formulář, jehož detail už je v raw, se přeskočí; každý
+formulář se potvrdí (commit) hned po uložení, takže přerušený běh (časový limit, pád, Ctrl+C) pokračuje
+dalším nestaženým formulářem; odpověď stažená bez uloženého záznamu se vezme z `raw.stazeni`, znovu se
+nestahuje (stažení se evidují pod zdrojem `vvz` – stejné API, sdílená cache s adaptérem pilotu).
+Jeden detail na formulář – oprava je ve VVZ nový formulář s novým evidenčním číslem.
+**Tempo:** dotazy po jednom, ≥ 0,35 s mezi dotazy na `api.vvz.nipez.cz` (D-013); při chybě spojení, 429
+a 5xx opakuje `pvk.http` (včetně Retry-After) a nad ním další pokusy po 30, 60 a 120 s; tři formuláře
+za sebou nestažené → běh končí, zbytek příště. `LIMIT_MINUT` (`--limit-minut`) omezí dobu běhu.
+Stav a úplnost: `python -m pvk.sber uplnost [--od --do]`.
+**Důsledky.** Měsíc formulářů lze stahovat po částech; evidence běhu uvádí `pocet_ve_zdroji` = formulářů
+v období podle souhrnů a v poznámce `hotovo_pred_behem`, `stazeno_v_behu`, `zbyva`, případně `ukonceno`.
+Údaje z detailu čte `pvk.zdroje.vvz.udaje_detailu()` (částky jako dvojice hodnota–měna, bez sčítání).
+
+## D-038 Osobní údaje v detailu formulářů VVZ
+
+**Rozhodnutí.** Rozšíření D-035 pro strom eForms: vynechávají se kontaktní údaje všech organizací
+a kontaktních míst (BT-502 kontaktní místo/osoba, BT-503 telefon, BT-506 e-mail, BT-739 fax), osoba
+zadávající formulář (`owner`, `createdBy`, `updatedBy`) a všechna pole o skutečných majitelích (UBO) –
+údaje o skutečných majitelích se nepoužívají (pravidlo 2); u organizace bez IČO (BT-501) název a adresa.
+Hash je z původní odpovědi, cesty vynechaných polí jsou v `redigovano`.
+
+## D-039 Dotační údaj nese stav k datu; chybějící dotace není žádná dotace
+
+**Kontext.** IS ReD se publikuje se zpožděním: export k 21. 2. 2026 (soubory upraveny 24. 3. 2026),
+poslední datum podpisu k datu exportu 16. 12. 2025, poslední měsíce před exportem jsou neúplné
+(12/2025: 4 podpisy proti 1 300–2 800 měsíčně v 1. pololetí 2025). Viz `docs/sources.md`, oddíl 4.
+**Rozhodnutí.** Každý dotační údaj nese **stav k datu**: datum exportu zdroje (a čas stažení z `raw.stazeni`)
+prochází z raw přes core a ind až do výstupu a výstup ho uvádí u každého čísla („IS ReD, stav k 21. 2. 2026“).
+**Chybějící dotace se nikdy nevykládá jako žádná dotace:** subjekt nebo období bez záznamu v registru
+dotací = „v datech zdroje ke dni … nenalezeno“, nikdy „dotaci nečerpal“ ani nulová částka; nulu nelze
+odvodit z chybějícího záznamu. Období po posledním datu podpisu ve zdroji a měsíce zjevně neúplné se
+označí jako neúplné a do srovnání se nezahrnují.
+**Důsledky.** Metodiky indikátorů s dotacemi musí mít datum stavu dat jako povinný parametr výsledku
+a pohled k publikaci dotační údaj bez něj nesmí vydat (vynutí se testem publikačních podmínek s prvním
+dotačním výstupem). Zpoždění ReD se přeměřuje při každém sběru (poznámka běhu `okno_podle_dat`: datum
+exportu a poslední podpis).

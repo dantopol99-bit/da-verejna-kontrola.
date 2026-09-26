@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -41,6 +42,10 @@ class Beh:
     od: date
     do: date
     vysledek: Vysledek = field(default_factory=Vysledek)
+    konec_casu: float | None = None  # time.monotonic() konce časového limitu běhu (navazující stahovače)
+
+    def zbyva_sekund(self) -> float:
+        return float("inf") if self.konec_casu is None else self.konec_casu - time.monotonic()
 
     def zaznam(self, id_ve_zdroji: str, url: str, odp, obsah: dict, format: str, **kw) -> None:
         from pvk import raw
@@ -101,11 +106,16 @@ class Sberac:
     popis: str
 
 
-def spust(conn: psycopg.Connection, stahovac: Stahovac, sberac: Sberac, od: date, do: date) -> tuple[int, str]:
-    """Jeden běh jednoho zdroje. Nikdy nespadne kvůli zdroji: chyba se zapíše do evidence běhu."""
-    beh_id = zahaj_beh(conn, sberac.zdroj, od, do, {"stahovac": sberac.popis})
+def spust(
+    conn: psycopg.Connection, stahovac: Stahovac, sberac: Sberac, od: date, do: date, limit_minut: float | None = None
+) -> tuple[int, str]:
+    """Jeden běh jednoho zdroje. Nikdy nespadne kvůli zdroji: chyba se zapíše do evidence běhu.
+    `limit_minut` omezí dobu běhu navazujících stahovačů (detail VVZ); nestihnuté pokračuje příště."""
+    parametry = {"stahovac": sberac.popis} | ({"limit_minut": limit_minut} if limit_minut else {})
+    beh_id = zahaj_beh(conn, sberac.zdroj, od, do, parametry)
     stahovac.beh_id = beh_id
-    beh = Beh(conn, stahovac, beh_id, sberac.zdroj, od, do)
+    konec = time.monotonic() + limit_minut * 60 if limit_minut else None
+    beh = Beh(conn, stahovac, beh_id, sberac.zdroj, od, do, konec_casu=konec)
     try:
         # jeden rychlý pokus bez opakování; výsledek je v raw.stazeni (beh_id)
         odp = stahovac.ziskej(sberac.zdroj, sberac.url_dostupnosti, obnov=True, pokusy=0, timeout=(15, 30))

@@ -1,10 +1,13 @@
 """make sber / make sber-stav.
 
-  python -m pvk.sber [--zdroje vvz,red] [--od RRRR-MM-DD] [--do RRRR-MM-DD]
+  python -m pvk.sber [--zdroje vvz,red] [--od RRRR-MM-DD] [--do RRRR-MM-DD] [--limit-minut N]
       všechny stahovače za období (výchozí poslední měsíc: [dnes − 1 měsíc, dnes)); nedostupný zdroj
       se přeskočí se záznamem v evidenci běhu. Návratový kód 1 jen při chybě dostupného zdroje.
+      Detail VVZ (vvz_detail) navazuje na předchozí běhy; --limit-minut omezí jeho dobu běhu.
   python -m pvk.sber stav [--pocet N]
       přehled posledních běhů (raw.beh_prehled).
+  python -m pvk.sber uplnost [--od RRRR-MM-DD] [--do RRRR-MM-DD]
+      detail VVZ za období: kolik formulářů je staženo a kolik zbývá, podíly vyplněných údajů.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from pvk.config import nastaveni
 from pvk.db import pripoj
 from pvk.http import Stahovac
 from pvk.sber import spust
-from pvk.sber.sberace import SBERACE
+from pvk.sber.sberace import SBERACE, uplnost_vvz_detail
 from pvk.zdroje import zaregistruj_zdroje
 
 
@@ -40,7 +43,7 @@ def vychozi_obdobi(dnes: date | None = None) -> tuple[date, date]:
     return od, do
 
 
-def sber(zdroje: list[str], od: date, do: date) -> int:
+def sber(zdroje: list[str], od: date, do: date, limit_minut: float | None = None) -> int:
     nezname = [z for z in zdroje if z not in SBERACE]
     if nezname:
         print(f"neznámé zdroje: {', '.join(nezname)} (dostupné: {', '.join(SBERACE)})", file=sys.stderr)
@@ -49,7 +52,7 @@ def sber(zdroje: list[str], od: date, do: date) -> int:
     with pripoj(nast.database_url) as conn:
         zaregistruj_zdroje(conn)
         stahovac = Stahovac(conn, nast)
-        stavy = [(z, *spust(conn, stahovac, SBERACE[z], od, do)) for z in zdroje]
+        stavy = [(z, *spust(conn, stahovac, SBERACE[z], od, do, limit_minut)) for z in zdroje]
         print(f"\nsběr za období {od} – {do} (bez posledního dne):")
         for zdroj, beh_id, stav in stavy:
             print(f"  {zdroj:<15} běh {beh_id:<6} {stav}")
@@ -91,21 +94,39 @@ def stav(pocet: int) -> int:
     return 0
 
 
+def uplnost(od: date, do: date) -> int:
+    nast = nastaveni()
+    with pripoj(nast.database_url) as conn:
+        u = uplnost_vvz_detail(conn, od, do)
+    print(f"detail VVZ za období {od} – {do} (bez posledního dne): formulářů {u['formularu_v_obdobi']}, "
+          f"staženo {u['hotovo']}, zbývá {u['zbyva']}; bez stromu eForms {u['bez_eforms']}")
+    for nazev, r in u["ramce"].items():
+        print(f"\n{nazev}: {r['zaklad']}")
+        for pole, n in r.items():
+            if pole != "zaklad":
+                podil = f"{100 * n / r['zaklad']:5.1f} %" if r["zaklad"] else "    –"
+                print(f"  {pole:<32} {n:>6}  {podil}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     p = argparse.ArgumentParser(prog="pvk.sber", description="Sběr zdrojových dat do raw")
-    p.add_argument("prikaz", nargs="?", default="sber", choices=["sber", "stav"])
+    p.add_argument("prikaz", nargs="?", default="sber", choices=["sber", "stav", "uplnost"])
     p.add_argument("--zdroje", default="", help="čárkami nebo mezerami oddělené kódy zdrojů (výchozí všechny)")
     p.add_argument("--od", type=date.fromisoformat)
     p.add_argument("--do", type=date.fromisoformat)
     p.add_argument("--pocet", type=int, default=20)
+    p.add_argument("--limit-minut", type=float, help="časový limit navazujících stahovačů (detail VVZ); zbytek příště")
     a = p.parse_args(argv)
     if a.prikaz == "stav":
         return stav(a.pocet)
     od, do = vychozi_obdobi()
     od, do = a.od or od, a.do or do
+    if a.prikaz == "uplnost":
+        return uplnost(od, do)
     zdroje = [z for z in a.zdroje.replace(",", " ").split() if z] or list(SBERACE)
-    return sber(zdroje, od, do)
+    return sber(zdroje, od, do, a.limit_minut)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ import io
 import json
 import os
 import re
+import time
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
@@ -28,7 +29,7 @@ import openpyxl
 from lxml import etree
 
 from pvk import raw
-from pvk.sber import Beh, Sberac
+from pvk.sber import LOG, Beh, Sberac
 from pvk.zdroje import dotace as dotace_zdroje
 from pvk.zdroje import registr_smluv as rs
 from pvk.zdroje import vvz
@@ -172,6 +173,162 @@ def sber_vvz(beh: Beh) -> None:
         if not polozky:
             break
         strana += 1
+
+
+# --- VVZ: detail formulářů (úplný obsah eForms), s navazováním ------------------------------------
+
+VVZ_DETAIL_ZDROJ = "vvz_detail"
+VVZ_DETAIL_CEKANI = (30, 60, 120)  # s; opakování stažení formuláře po chybě (nad opakováním v pvk.http)
+VVZ_DETAIL_MAX_CHYB_ZA_SEBOU = 3  # tolik formulářů za sebou nestaženo -> běh končí, zbytek příště
+RE_EFORMS_KONTAKT = re.compile(r"^BT-(502|503|506|739)-")  # kontaktní místo, telefon, e-mail, fax
+EFORMS_STRANA_BEZ_ICO = frozenset({"BT-500-Organization-Company", "ND-CompanyAddress"})
+
+
+def rediguj_eforms(obj, cesta: str = ""):
+    """Detail formuláře VVZ bez osobních údajů (D-035, D-038): kontaktní údaje (BT-502/503/506/739)
+    a osoby zadávající formulář všude, údaje o skutečných majitelích (UBO) celé, u organizace bez IČO
+    (BT-501) název a adresa. Vrací (kopie, seznam cest vynechaných polí)."""
+    vynechano: list[str] = []
+    if isinstance(obj, list):
+        vysledek = []
+        for i, x in enumerate(obj):
+            v, p = rediguj_eforms(x, f"{cesta}[{i}]")
+            vysledek.append(v)
+            vynechano += p
+        return vysledek, vynechano
+    if not isinstance(obj, dict):
+        return obj, vynechano
+    bez_ico = "ND-CompanyLegalEntity" in obj or "BT-500-Organization-Company" in obj  # uzel ND-Company
+    if bez_ico:
+        bez_ico = not any(
+            isinstance(le, dict) and le.get("BT-501-Organization-Company")
+            for le in vvz.seznam(obj.get("ND-CompanyLegalEntity"))
+        )
+    vysledek = {}
+    for k, v in obj.items():
+        pod = f"{cesta}.{k}" if cesta else k
+        if k in VVZ_VZDY or RE_EFORMS_KONTAKT.match(k) or "UBO" in k or (bez_ico and k in EFORMS_STRANA_BEZ_ICO):
+            vynechano.append(pod)
+            continue
+        vysledek[k], p = rediguj_eforms(v, pod)
+        vynechano += p
+    return vysledek, vynechano
+
+
+def formulare_vvz(conn, od: date, do: date) -> list[tuple[str, str, bool]]:
+    """Formuláře VVZ uveřejněné v období podle souhrnů v raw (sběr `vvz`), v pořadí evidenčních čísel:
+    (evidenční číslo formuláře, ID podání v API, detail už je v raw). Datum uveřejnění se porovnává
+    jako datum v čase ČR, stejně jako filtr API."""
+    radky = conn.execute(
+        """
+        SELECT DISTINCT ON (s.id_ve_zdroji) s.id_ve_zdroji AS formular, s.obsah->>'id' AS submission,
+               EXISTS (SELECT 1 FROM raw.zaznam d WHERE d.zdroj = %s AND d.id_ve_zdroji = s.id_ve_zdroji) AS hotovo
+        FROM raw.zaznam s
+        WHERE s.zdroj = %s
+          AND left(s.obsah->'data'->>'datumUverejneniVvz', 10) >= %s
+          AND left(s.obsah->'data'->>'datumUverejneniVvz', 10) < %s
+        ORDER BY s.id_ve_zdroji, s.cas_stazeni DESC, s.id DESC
+        """,
+        (VVZ_DETAIL_ZDROJ, vvz.ZDROJ, od.isoformat(), do.isoformat()),
+    ).fetchall()
+    return [(r["formular"], r["submission"], r["hotovo"]) for r in radky]
+
+
+def _stahni_detail(beh: Beh, submission: str):
+    """Stažení detailu s opakováním po chybě spojení, 429 a 5xx (čekání VVZ_DETAIL_CEKANI, nejvýš do
+    časového limitu běhu). Dříve úspěšně stažený detail se bere z raw.stazeni (nestahuje se znovu)."""
+    api = vvz.VVZ(beh.stahovac)
+    for cekani in (*VVZ_DETAIL_CEKANI, None):
+        odp, deti = api.deti(submission)
+        if odp.status == 200 or (odp.status is not None and odp.status < 500 and odp.status != 429):
+            return odp, deti
+        if cekani is None or beh.zbyva_sekund() < cekani:
+            return odp, deti
+        LOG.warning("VVZ detail %s: %s, další pokus za %d s", submission, odp.status or odp.chyba, cekani)
+        time.sleep(cekani)
+    raise AssertionError
+
+
+def sber_vvz_detail(beh: Beh) -> None:
+    """Úplný obsah formulářů eForms (`children/search`) pro formuláře VVZ uveřejněné v období (seznam
+    ze souhrnů v raw, proto běží po sběru `vvz`). Navazuje: formulář, jehož detail už je v raw, se
+    přeskočí, takže přerušený nebo časově omezený běh pokračuje dalším nestaženým formulářem a nic se
+    nestahuje dvakrát. Záznam = odpověď API pro jeden formulář (ID = evidenční číslo formuláře)."""
+    formulare = formulare_vvz(beh.conn, beh.od, beh.do)
+    hotovo_pred = sum(1 for *_x, hotovo in formulare if hotovo)
+    p = beh.vysledek.parametry
+    p.update({"formularu_v_obdobi": len(formulare), "hotovo_pred_behem": hotovo_pred})
+    beh.vysledek.pocet_ve_zdroji = len(formulare)
+    if not formulare:
+        beh.vysledek.chyby.append("VVZ detail: v raw nejsou souhrny formulářů za období (nejdřív sběr vvz)")
+    stazeno = chyb_za_sebou = 0
+    for formular, submission, hotovo in formulare:
+        if hotovo:
+            continue
+        if beh.zbyva_sekund() <= 0:
+            p["ukonceno"] = "časový limit běhu"
+            break
+        odp, deti = _stahni_detail(beh, submission)
+        if odp.status != 200:
+            beh.vysledek.chyby.append(f"{formular} {odp.url}: {odp.status or odp.chyba}")
+            chyb_za_sebou += 1
+            if chyb_za_sebou >= VVZ_DETAIL_MAX_CHYB_ZA_SEBOU:
+                p["ukonceno"] = f"{chyb_za_sebou} formuláře za sebou nestaženy – zbytek příští běh"
+                break
+            continue
+        chyb_za_sebou = 0
+        puvodni = {"formular": formular, "submission": submission, "deti": deti}
+        ulozeny, vynechano = rediguj_eforms(puvodni)
+        beh.zaznam(formular, odp.url, odp, puvodni, "json", ulozeny_obsah=ulozeny, redigovat=vynechano)
+        beh.conn.commit()  # každý formulář hned: přerušený běh naváže dalším
+        stazeno += 1
+    p.update({"stazeno_v_behu": stazeno, "zbyva": len(formulare) - hotovo_pred - stazeno})
+
+
+UPLNOST_POLI = {  # název ukazatele -> test na údajích detailu (vvz.udaje_detailu)
+    "IČO zadavatele": lambda u: bool(u["ico_zadavatelu"]),
+    "IČO dodavatele": lambda u: bool(u["ico_dodavatelu"]),
+    "předpokládaná hodnota": lambda u: bool(u["predpokladana_hodnota"]),
+    "vysoutěžená cena": lambda u: bool(u["vysoutezena_cena"]),
+    "počet nabídek": lambda u: bool(u["pocet_nabidek"]),
+    "druh řízení": lambda u: bool(u["druh_rizeni"]),
+    "lhůta pro nabídky / žádosti": lambda u: bool(u["lhuty"]["podani_nabidek"] or u["lhuty"]["zadosti_o_ucast"]),
+    "CPV": lambda u: bool(u["cpv"]),
+    "evidenční číslo zakázky (VVZ)": lambda u: bool(u["ev_cislo_zakazky"]),
+    "identifikátor NIPEZ": lambda u: bool(u["identifikator_nipez"]),
+}
+
+
+def uplnost_vvz_detail(conn, od: date, do: date) -> dict:
+    """Stav navazujícího sběru a úplnost stažených detailů za období: počty formulářů (v období / hotovo /
+    zbývá) a pro tři rámce (všechny stažené detaily, oznámení o výsledku BT-03 = result, výsledky
+    s vybraným dodavatelem) počet detailů s vyplněným údajem."""
+    formulare = formulare_vvz(conn, od, do)
+    radky = conn.execute(
+        """
+        SELECT DISTINCT ON (d.id_ve_zdroji) d.obsah AS detail, s.obsah AS souhrn
+        FROM raw.zaznam d
+        JOIN LATERAL (SELECT obsah FROM raw.zaznam s WHERE s.zdroj = %s AND s.id_ve_zdroji = d.id_ve_zdroji
+                      ORDER BY s.cas_stazeni DESC, s.id DESC LIMIT 1) s ON true
+        WHERE d.zdroj = %s AND d.id_ve_zdroji = ANY(%s)
+        ORDER BY d.id_ve_zdroji, d.cas_stazeni DESC, d.id DESC
+        """,
+        (vvz.ZDROJ, VVZ_DETAIL_ZDROJ, [f for f, _s, hotovo in formulare if hotovo]),
+    ).fetchall()
+    udaje = [vvz.udaje_detailu(r["detail"], r["souhrn"]) for r in radky]
+    ramce = {
+        "všechny stažené detaily": udaje,
+        "oznámení o výsledku (BT-03 = result)": [u for u in udaje if u["vysledek"]],
+        "výsledky s vybraným dodavatelem": [u for u in udaje if u["vysledek"] and u["vybran_dodavatel"]],
+    }
+    return {
+        "formularu_v_obdobi": len(formulare),
+        "hotovo": len(udaje),
+        "zbyva": len(formulare) - len(udaje),
+        "bez_eforms": sum(1 for u in udaje if not u["eforms"]),
+        "ramce": {nazev: {"zaklad": len(us), **{pole: sum(1 for u in us if test(u)) for pole, test in UPLNOST_POLI.items()}}
+                  for nazev, us in ramce.items()},
+    }
 
 
 # --- ISVZ (otevřená data Registru veřejných zakázek) ----------------------------------------------
@@ -480,6 +637,8 @@ SBERACE: dict[str, Sberac] = {
         Sberac(rs.ZDROJ, f"{rs.DATA_URL}/index.xml", sber_registr_smluv, "registr smluv – denní XML dumpy"),
         Sberac(vvz.ZDROJ, f"{vvz.API}/api/submissions/search?formGroup=vz&form=vz&page=1&limit=1", sber_vvz,
                "VVZ – formuláře uveřejněné v období"),
+        Sberac(VVZ_DETAIL_ZDROJ, f"{vvz.API}/api/submissions/search?formGroup=vz&form=vz&page=1&limit=1",
+               sber_vvz_detail, "VVZ – detail formulářů (eForms), navazuje na předchozí běhy"),
         Sberac(ISVZ_ZDROJ, ISVZ_OPENDATA, sber_isvz, "ISVZ – měsíční otevřená data RVZ"),
         Sberac(NEN_ZDROJ, NEN_PROFILY, sber_nen, "NEN – XML data profilů zadavatelů"),
         Sberac(dotace_zdroje.RED_ZDROJ, f"{dotace_zdroje.RED_CKAN}?id=dotace", sber_red,

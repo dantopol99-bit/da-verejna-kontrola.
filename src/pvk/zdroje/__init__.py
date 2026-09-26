@@ -26,6 +26,13 @@ ZDROJE: dict[str, dict[str, str]] = {
         "url": "https://api.vvz.nipez.cz/",
         "licence": "veřejné údaje podle zákona č. 134/2016 Sb.",
     },
+    "vvz_detail": {
+        "nazev": "Věstník veřejných zakázek – detail formulářů eForms (veřejné API webu VVZ)",
+        "spravce": "Ministerstvo pro místní rozvoj",
+        "url": "https://api.vvz.nipez.cz/api/submissions/children/search",
+        "licence": "veřejné údaje podle zákona č. 134/2016 Sb.",
+        "poznamka": "Úplný obsah formuláře k souhrnu ze zdroje vvz (stejné evidenční číslo formuláře).",
+    },
     "isvz": {
         "nazev": "ISVZ – otevřená data o veřejných zakázkách",
         "spravce": "Ministerstvo pro místní rozvoj",
