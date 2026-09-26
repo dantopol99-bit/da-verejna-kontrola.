@@ -1,0 +1,11 @@
+{
+  "kod": "souhrny-2026.09",
+  "popis": "Souhrnný objem subjektu v rámci jednoho zdroje a typu částky s pokrytím a podílem heuristické deduplikace; nad prahem rozpětí",
+  "platnost_od": "2026-09-26",
+  "dokument": "docs/decisions.md#d-046",
+  "parametry": {
+    "prah_podilu_heuristiky_pro_rozpeti": 0.05,
+    "min_pocet_pripadu": 30,
+    "min_zaklad": null
+  }
+}

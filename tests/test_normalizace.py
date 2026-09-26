@@ -10,6 +10,7 @@ import pytest
 
 from pvk import raw
 from pvk.castka import NeuplnaCastka
+from pvk.core import klic_entity
 from pvk.normalizace import NCastka, normalizuj, over_ico
 from pvk.normalizace.kurzy import KurzyCNB, parsuj_rok
 from pvk.zdroje import zaregistruj_zdroje
@@ -55,26 +56,6 @@ def test_kurzy_cnb_platny_kurz_k_datu():
 def test_castka_bez_typu_neprojde():
     with pytest.raises((NeuplnaCastka, ValueError)):
         NCastka("x", "neznamy_typ", Decimal(1), "CZK", "bez_dph", "celkem", date(2026, 1, 1)).over()
-
-
-@pytest.fixture
-def db_vlastni(test_db_url):
-    """Normalizace commituje; vlastní dočasná databáze, aby neovlivnila ostatní testy sdílené databáze."""
-    import uuid
-    from urllib.parse import urlsplit, urlunsplit
-
-    from pvk.db import migruj, pripoj
-
-    c = urlsplit(test_db_url)
-    admin = psycopg.connect(urlunsplit((c.scheme, c.netloc, "/postgres", c.query, c.fragment)), autocommit=True)
-    jmeno = f"pvk_test_n_{uuid.uuid4().hex[:8]}"
-    admin.execute(f'CREATE DATABASE "{jmeno}"')
-    conn = pripoj(urlunsplit((c.scheme, c.netloc, "/" + jmeno, c.query, c.fragment)))
-    migruj(conn)
-    yield conn
-    conn.close()
-    admin.execute(f'DROP DATABASE IF EXISTS "{jmeno}" WITH (FORCE)')
-    admin.close()
 
 
 class Kotva:
@@ -148,3 +129,52 @@ def test_db_zrcadlo_jen_jako_vyvojovy_vzorek(db_vlastni):
     with pytest.raises(psycopg.errors.CheckViolation):
         db.execute("INSERT INTO raw.zaznam (zdroj, id_ve_zdroji, url, cas_stazeni, hash, format, obsah) VALUES "
                    "('hlidac_statu_rs', '2', 'u', now(), repeat('a', 64), 'html', '{}')")
+
+
+def _detail(conn, formular, loty):
+    """Detail formuláře eForms se zadanými částmi (BT-137-Lot) a vítězem každé části."""
+    orgs = [{"ND-Company": {"OPT-200-Organization-Company": f"ORG-{i}", "ND-CompanyLegalEntity": [
+        {"BT-501-Organization-Company": ico}]}} for i, ico in enumerate(["00255513", "45023522", "25400339"])]
+    root = {"BT-03-notice": "result", "ND-ContractingParty": [{"ND-Buyer": {"OPT-300-Procedure-Buyer": "ORG-0"}}],
+            "ND-Lot": [{"BT-137-Lot": lot} for lot in loty],
+            "ND-RootExtension": {"ND-Organizations": {"ND-Organization": orgs}, "ND-NoticeResult": {
+                "ND-TenderingParty": [{"OPT-210-Tenderer": f"TPA-{i}", "ND-Tenderer": [{"OPT-300-Tenderer": f"ORG-{i + 1}"}]}
+                                      for i in range(len(loty))],
+                "ND-LotTender": [{"OPT-321-Tender": f"TEN-{i}", "OPT-310-Tender": f"TPA-{i}", "BT-13714-Tender": lot,
+                                  "BT-720-Tender": {"_value": 100.0 * (i + 1), "_currencyID": "CZK"}}
+                                 for i, lot in enumerate(loty)],
+                "ND-LotResult": [{"BT-13713-LotResult": lot, "BT-142-LotResult": "selec-w",
+                                  "ND-LotResultTenderReference": [{"OPT-320-LotResult": f"TEN-{i}"}]}
+                                 for i, lot in enumerate(loty)]}}}
+    return raw.zapis_zaznam(conn, zdroj="vvz_detail", id_ve_zdroji=formular, url="https://api.vvz.nipez.cz/d",
+                            cas_stazeni=datetime(2026, 9, 3, tzinfo=UTC), format="json",
+                            obsah={"formular": formular, "submission": f"id-{formular}", "deti": [{"data": {"ND-Root": root}}]})
+
+
+def test_db_zakazka_s_castmi_je_tok_za_cast_a_oprava_bez_mazani(db_vlastni):
+    db = db_vlastni
+    zaregistruj_zdroje(db)
+    _vvz(db, "F1", "Z9", "00255513")
+    db.commit()
+    kotva = Kotva({"00255513", "45023522", "25400339"})
+    normalizuj(db, ["vvz", "vvz_detail"], kotva, None)
+    assert [r["n"] for r in db.execute("SELECT count(*) AS n FROM core.tok_aktualni")] == [1]  # zatím celá zakázka
+    _vvz(db, "F2", "Z9", "00255513", druhFormulare="29")
+    _detail(db, "F2", ["LOT-0001", "LOT-0002"])  # výsledek: zakázka má dvě části s různými dodavateli
+    db.commit()
+    stat = normalizuj(db, ["vvz", "vvz_detail"], kotva, None)
+    toky = db.execute("SELECT predmet, prijemce_subjekt_id FROM core.tok_aktualni ORDER BY predmet").fetchall()
+    assert len(toky) == 2 and all(t["predmet"].endswith(("LOT-0001", "LOT-0002")) for t in toky)
+    assert len({t["prijemce_subjekt_id"] for t in toky}) == 2  # každá část má svého dodavatele
+    # tok celé zakázky zůstal v historii (uzavřená verze) a má záznam o ukončení s náhradou
+    ukonceni = db.execute("SELECT tabulka, cardinality(nahrazeno) AS n FROM core.ukonceni_entity WHERE tabulka = 'tok'").fetchall()
+    assert [(u["tabulka"], u["n"]) for u in ukonceni] == [("tok", 2)] and stat.ukonceno["tok"] == 1
+    assert db.execute("SELECT count(*) AS n FROM core.tok WHERE tok_id = %s",
+                      (klic_entity("tok", "vvz:Z9"),)).fetchone()["n"] == 1
+    # oba formuláře zakázky (souhrn F1, F2 a detail F2) jsou navázané na obě části: 3 záznamy × 2 části
+    assert db.execute("SELECT count(*) AS n FROM core.tok_zdroj_aktualni").fetchone()["n"] == 6
+    # opakovaný běh: žádná nová verze
+    pred = [db.execute(f"SELECT count(*) AS n FROM core.{t}").fetchone()["n"] for t in ("tok", "tok_zdroj", "castka", "udalost")]
+    normalizuj(db, ["vvz", "vvz_detail"], kotva, None)
+    assert [db.execute(f"SELECT count(*) AS n FROM core.{t}").fetchone()["n"]
+            for t in ("tok", "tok_zdroj", "castka", "udalost")] == pred

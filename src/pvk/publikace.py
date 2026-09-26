@@ -10,6 +10,7 @@ Podmínky nepublikování (každá má kód porušení):
   PROFIL_FYZICKE_OSOBY  (fyzické osoby se nikdy nezobrazují jako samostatné profily)
   DOTACE_BEZ_STAVU_K_DATU  (dotační údaj musí uvádět stav dat zdroje k datu, D-039)
   VYVOJOVY_VZOREK  (vývojový vzorek, např. zrcadlo registru smluv, není zdroj publikovaných dat, D-040)
+  SOUHRN_BEZ_ROZPETI  (podíl heuristiky nad zveřejněným prahem metodiky -> souhrn musí uvádět rozpětí, D-046)
 
 Brána se spouští jako `python -m pvk.publikace` (make gate / make pilot) a v testech
 (tests/test_publikacni_podminky.py); jakékoli porušení ve výstupech shodí build.
@@ -156,6 +157,18 @@ def over_puvod(v: Mapping, kde: str = "") -> list[Poruseni]:
     return []
 
 
+def over_rozpeti(s: Mapping, metodiky: Mapping[str, Mapping], kde: str = "") -> list[Poruseni]:
+    """D-046: nad zveřejněným prahem podílu heuristiky (parametr metodiky souhrnu) se souhrn uvádí jako rozpětí."""
+    prah = (metodiky.get(str(s.get("metodika_verze"))) or {}).get("prah_podilu_heuristiky_pro_rozpeti")
+    podil = s.get("podil_heuristicke_deduplikace")
+    if prah is None or podil is None or float(podil) <= float(prah):
+        return []
+    r = s.get("rozpeti") or {}
+    if _chybi(r.get("dolni_se_shodou")) or _chybi(r.get("horni_bez_shody")):
+        return [Poruseni("SOUHRN_BEZ_ROZPETI", f"podíl heuristiky {podil} nad prahem {prah}: chybí rozpětí", kde)]
+    return []
+
+
 def over_castku(c: Mapping, kde: str = "") -> list[Poruseni]:
     p: list[Poruseni] = []
     if _chybi(c.get("typ")):
@@ -232,7 +245,7 @@ def over_vystup(vystup: Mapping, metodiky: Mapping[str, Mapping], kde: str) -> l
     if druh == "indikator":
         return over_indikator(vystup, metodiky.get(str(vystup.get("metodika_verze"))), kde) + puvod
     if druh == "souhrn":
-        return over_souhrn(vystup, kde) + puvod
+        return over_souhrn(vystup, kde) + over_rozpeti(vystup, metodiky, kde) + puvod
     if druh == "castka":
         return over_castku(vystup, kde) + puvod
     if druh == "profil":

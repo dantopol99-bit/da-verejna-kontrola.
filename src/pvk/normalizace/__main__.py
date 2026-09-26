@@ -12,7 +12,6 @@ import sys
 from datetime import date
 
 from pvk.config import KOREN, nastaveni
-from pvk.core import zapis_entity
 from pvk.db import pripoj
 from pvk.http import Stahovac
 from pvk.kotva import vychozi_kotva
@@ -25,18 +24,26 @@ LIMITY = KOREN / "metodika" / "limity-zzvz-2026.09.json"
 REPORT = KOREN / "docs" / "blok3.md"
 
 
-def zapis_limity(conn) -> int:
-    """Limity VZMR a zákonné minimální lhůty (metodika/limity-zzvz-2026.09.json) do core.limit."""
+def zapis_limity(conn, beh_id: int | None = None) -> int:
+    """Limity VZMR a zákonné minimální lhůty (metodika/limity-zzvz-2026.09.json) do core.limit: jedna entita
+    na kód limitu, hodnoty v čase jako verze s platností od–do (valid time). Entity dřívějšího klíčování
+    (kód + datum, blok 3/1) se logicky ukončí (D-044, D-047)."""
+    from pvk.core import klic_entity, zapis_entitu
+
     definice = json.loads(LIMITY.read_text(encoding="utf-8"))
-    polozky = []
+    nove = set()
     for lim in definice["parametry"]["limity"]:
         data = {k: lim[k] for k in ("kod", "popis", "hodnota", "jednotka", "pravni_zaklad")}
         data["dph_rezim"] = lim.get("dph_rezim")
         do = date.fromisoformat(lim["platnost_do"]) if lim.get("platnost_do") else None
-        polozky.append((f"{lim['kod']}:{lim['platnost_od']}", data, date.fromisoformat(lim["platnost_od"]), do))
-    zapis_entity(conn, "limit", polozky)
+        nove.add(zapis_entitu(conn, "limit", lim["kod"], data, date.fromisoformat(lim["platnost_od"]), do))
+    for r in conn.execute("SELECT DISTINCT limit_id, kod FROM core.limit WHERE recorded_to = 'infinity'").fetchall():
+        if r["limit_id"] not in nove:
+            conn.execute("SELECT core.ukonci_entitu('core.limit'::regclass, %s, %s, %s::uuid[], %s)",
+                         (r["limit_id"], "limit překlíčován: jedna entita na kód, hodnoty jako verze v čase (D-047)",
+                          [str(klic_entity("limit", r["kod"]))], beh_id))
     conn.commit()
-    return len(polozky)
+    return len(definice["parametry"]["limity"])
 
 
 class _BezKotvy:

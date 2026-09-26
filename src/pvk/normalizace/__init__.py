@@ -118,6 +118,7 @@ class Statistika:
     toku: Counter = field(default_factory=Counter)
     castek: Counter = field(default_factory=Counter)
     castek_ve_zdroji: Counter = field(default_factory=Counter)  # částky nalezené ve zdroji (s typem i bez)
+    ukonceno: Counter = field(default_factory=Counter)  # logicky ukončené entity (oprava bez mazání)
     castek_s_typem: Counter = field(default_factory=Counter)
     prepocet: Counter = field(default_factory=Counter)
     udalosti: Counter = field(default_factory=Counter)
@@ -284,7 +285,7 @@ def zapis_zaznamy(
             if u.klic in videne:
                 continue
             videne.add(u.klic)
-            up.append((u.klic, {"tok_id": str(klic_entity("tok", tok_klic)),
+            up.append((u.klic, {"tok_id": str(klic_entity("tok", tok_klic)) if tok_klic else None,
                                 "zdrojovy_zaznam_id": str(klic_entity("zdrojovy_zaznam", f"{z.zdroj}:{z.id_ve_zdroji}")),
                                 "typ": u.typ, "datum": u.datum, "popis": u.popis}, u.datum, None))
             stat.udalosti[(z.zdroj, u.typ)] += 1
@@ -301,6 +302,51 @@ def zapis_zaznamy(
         )
     for _b, _r, zd, druh, *_x in vy:
         stat.vyjimek[(zd, druh)] += 1
+
+    # 7. oprava bez mazání: entity dříve odvozené z týchž zdrojových záznamů, které dnešní normalizace
+    #    nevytváří (např. tok celé zakázky, která je rozdělena na části), se logicky ukončí (D-044)
+    ukonci_nahrazene(conn, beh_id, [klic_entity("zdrojovy_zaznam", f"{z.zdroj}:{z.id_ve_zdroji}") for z in zaznamy],
+                     {"tok": {klic_entity("tok", k) for k, *_x in polozky},
+                      "tok_zdroj": {klic_entity("tok_zdroj", k) for k, *_x in tz},
+                      "castka": {klic_entity("castka", k) for k, *_x in cp},
+                      "udalost": {klic_entity("udalost", k) for k, *_x in up}}, stat)
+
+
+def ukonci_nahrazene(conn: psycopg.Connection, beh_id: int, zaznamy_id: list, nove: dict[str, set], stat) -> None:
+    """Uzavře aktuální verze entit (vazby, částky, události, toky) odvozených z daných zdrojových záznamů,
+    které v novém výsledku nejsou. Tok se ukončí, jen když na něj po opravě nevede žádná aktuální vazba."""
+    if not zaznamy_id:
+        return
+    duvod = "oprava normalizace: entita nahrazena (např. tok celé zakázky toky jejích částí)"
+    stare_tz = conn.execute(
+        "SELECT tok_zdroj_id, tok_id FROM core.tok_zdroj WHERE recorded_to = 'infinity' AND zdrojovy_zaznam_id = ANY(%s)",
+        (zaznamy_id,)).fetchall()
+    ukoncit: list[tuple[str, object, list]] = []
+    kandidati_toku = set()
+    for r in stare_tz:
+        if r["tok_zdroj_id"] not in nove["tok_zdroj"]:
+            ukoncit.append(("tok_zdroj", r["tok_zdroj_id"], []))
+            if r["tok_id"] not in nove["tok"]:
+                kandidati_toku.add(r["tok_id"])
+    for tabulka in ("castka", "udalost"):
+        for r in conn.execute(f"SELECT {tabulka}_id AS id FROM core.{tabulka} WHERE recorded_to = 'infinity' "
+                              "AND zdrojovy_zaznam_id = ANY(%s)", (zaznamy_id,)):
+            if r["id"] not in nove[tabulka]:
+                ukoncit.append((tabulka, r["id"], []))
+    koncici_tz = {k for t, k, _n in ukoncit if t == "tok_zdroj"}
+    for tok_id in kandidati_toku:
+        zbyva = conn.execute("SELECT count(*) AS n FROM core.tok_zdroj WHERE recorded_to = 'infinity' AND tok_id = %s "
+                             "AND tok_zdroj_id <> ALL(%s)", (tok_id, list(koncici_tz))).fetchone()["n"]
+        if zbyva == 0:
+            nahrada = sorted({str(r["tok_id"]) for r in conn.execute(
+                "SELECT DISTINCT tok_id FROM core.tok_zdroj WHERE zdrojovy_zaznam_id IN (SELECT zdrojovy_zaznam_id "
+                "FROM core.tok_zdroj WHERE tok_id = %s) AND recorded_to = 'infinity'", (tok_id,))} & {str(t) for t in nove["tok"]})
+            ukoncit.append(("tok", tok_id, nahrada))
+    with conn.cursor() as cur:
+        cur.executemany("SELECT core.ukonci_entitu(%s::regclass, %s, %s, %s::uuid[], %s)",
+                        [(f"core.{t}", k, duvod, n, beh_id) for t, k, n in ukoncit])
+    for t, _k, _n in ukoncit:
+        stat.ukonceno[t] += 1
 
 
 def znama_ica(conn: psycopg.Connection) -> dict[str, str]:

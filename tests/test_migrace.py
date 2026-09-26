@@ -43,7 +43,7 @@ def test_entity_podle_metodiky(db):
 def test_vsechny_entity_core_jsou_bitemporalni(db):
     for r in db.execute(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'core' "
-        "AND table_type = 'BASE TABLE' AND table_name NOT IN ('entita', 'normalizace_beh', 'normalizace_vyjimka')"
+        "AND table_type = 'BASE TABLE' AND table_name NOT IN ('entita', 'normalizace_beh', 'normalizace_vyjimka', 'ukonceni_entity')"
     ).fetchall():
         sloupce = {
             c["column_name"]

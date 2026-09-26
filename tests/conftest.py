@@ -50,6 +50,21 @@ def db(test_db_url):
     conn.close()
 
 
+@pytest.fixture
+def db_vlastni(test_db_url):
+    """Normalizace commituje; vlastní dočasná databáze, aby neovlivnila ostatní testy sdílené databáze."""
+    c = urlsplit(test_db_url)
+    admin = psycopg.connect(urlunsplit((c.scheme, c.netloc, "/postgres", c.query, c.fragment)), autocommit=True)
+    jmeno = f"pvk_test_n_{uuid.uuid4().hex[:8]}"
+    admin.execute(f'CREATE DATABASE "{jmeno}"')
+    conn = pripoj(urlunsplit((c.scheme, c.netloc, "/" + jmeno, c.query, c.fragment)))
+    migruj(conn)
+    yield conn
+    conn.close()
+    admin.execute(f'DROP DATABASE IF EXISTS "{jmeno}" WITH (FORCE)')
+    admin.close()
+
+
 def pytest_collection_modifyitems(items):
     for item in items:
         if "db" in getattr(item, "fixturenames", ()):
