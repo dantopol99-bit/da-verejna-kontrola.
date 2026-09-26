@@ -47,7 +47,7 @@ k datu (příjemce bez přiznané částky, D-039).
 
 ## 4. Indikátory čekající na zdroj
 
-Dělení pod limit, dodavatel ve sledovaném pásmu kotvy a změna struktury v okně mají funkce otestované
+Dělení pod limit, dodavatel v rizikovém pásmu (pojem kotvy, D-054) a změna struktury v okně mají funkce otestované
 na vzorových datech (`tests/test_indikatory.py`). Na skutečných datech se nepočítají, stav je `ceka_na_zdroj`
 a brána jejich výsledky odmítne. Závislost na veřejných penězích se ve v1 nevydává (D-027).
 

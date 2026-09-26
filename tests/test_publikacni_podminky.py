@@ -478,3 +478,42 @@ def test_db_vysledek_bez_zakladu_nebo_srovnavaci_skupiny_nelze_ulozit(db, metodi
                        f"metodika_verze_id, {sloupce}) VALUES ('x', '2025-01-01', '2026-01-01', 40, %s, {hodnoty})",
                        (metodika_id,))
         db.execute("ROLLBACK TO SAVEPOINT s")
+
+
+# --- D-052: prahy – metoda v0.9 schválena, hodnoty ne; D-053: stav metodiky -----------------------
+
+@pytest.mark.parametrize("zmena", [{"nad_prahem": True}, {"prah": 0.87}, {"nad_prahem": "ano"}, {"oznaceni_prahu": "p90"}])
+def test_vysledek_nad_prahem_neprojde_dokud_hodnoty_nejsou_schvalene(zmena):
+    metodiky = publikace.nacti_metodiky()
+    assert metodiky["prahy-0.9"]["hodnoty_schvaleny"] is False
+    assert "PRAH_NESCHVALEN" in kody(publikace.over_vystup({**DOBRY_INDIKATOR, **zmena}, metodiky, "t"))
+    assert publikace.over_vystup({**DOBRY_INDIKATOR, "nad_prahem": False}, metodiky, "t") == []
+    schvaleno = {**metodiky, "prahy-0.9": {**metodiky["prahy-0.9"], "hodnoty_schvaleny": True}}
+    assert "PRAH_NESCHVALEN" not in kody(publikace.over_vystup({**DOBRY_INDIKATOR, **zmena}, schvaleno, "t"))
+
+
+@pytest.mark.parametrize(("stav", "kod"), [("neuplna_metodika", "INDIKATOR_NEUPLNA_METODIKA"),
+                                           ("nahrazena", "INDIKATOR_METODIKA_NAHRAZENA"),
+                                           ("ceka_na_zdroj", "INDIKATOR_CEKA_NA_ZDROJ")])
+def test_indikator_neplatne_metodiky_neprojde(stav, kod):
+    assert kod in kody(publikace.over_indikator(DOBRY_INDIKATOR, {**METODIKA, "stav": stav}))
+
+
+def test_nahrazene_verze_metodik_indikatoru():
+    metodiky = publikace.nacti_metodiky()
+    assert metodiky["ind-novy-subjekt-2026.09"]["stav"] == "nahrazena"
+    assert metodiky["ind-zkracene-lhuty-2026.09"]["stav"] == "nahrazena"
+    assert metodiky["ind-novy-subjekt-2026.09.2"]["stav"] == "spocteno"
+
+
+# --- D-054: brána hlídá hodnotící výrazy ve výstupních textech, ne v interních názvech -------------
+
+def test_interni_nazvy_neblokuji_kontrola_textu_zustava():
+    # interní identifikátory a pojem kotvy „rizikové pásmo“ v neutrálním popisu projdou
+    for text in ("rizikove_pasmo", "ind-rizikove-pasmo-2026.09", "Dodavatel v rizikovém pásmu podle kotvy"):
+        assert publikace.over_text(text) == []
+    assert publikace.over_vystup({**DOBRY_INDIKATOR, "indikator_kod": "rizikove_pasmo_dodavatel"},
+                                 {"pilot-2026.09": METODIKA}, "t") == []
+    # hodnotící výrazy ve výstupním textu brána dál odmítá
+    for text in ("rizikový dodavatel", "Rizikoví dodavatelé zadavatele", "dodavatel je rizikový dodavatel"):
+        assert kody(publikace.over_text(text)) == ["HODNOTICI_SLOVA"]

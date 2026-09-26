@@ -44,7 +44,7 @@ def test_ceka_na_zdroj_deleni_pod_limit():
 def test_ceka_na_zdroj_pasmo_kotvy():
     z = [{"ico_zadavatele": "A", "ico_dodavatele": "X", "hodnota": Decimal(80)},
          {"ico_zadavatele": "A", "ico_dodavatele": "Y", "hodnota": Decimal(20)}]
-    r = ind.dodavatel_pasmo_kotvy(z, {"X": "sledovane", "Y": "bezne"}, {"sledovane"})
+    r = ind.rizikove_pasmo(z, {"X": "vysoke", "Y": "nizke"}, {"vysoke"})
     assert r["A"] == {"pocet_pripadu": 2, "zaklad": Decimal(100), "podil": Decimal("0.8")}
 
 
@@ -88,3 +88,51 @@ def test_zdrojovy_kod_indikatoru_neobsahuje_zakazane_vyrazy():
     zdroj = Path(ind.__file__).read_text(encoding="utf-8")
     sablony = [radek for radek in zdroj.splitlines() if "Signál k prověření" in radek or 'f"' in radek]
     assert sablony and all(publikace.over_text(s) == [] for s in sablony)
+
+
+class _KotvaVznik:
+    """Kotva pro test: datum vzniku a přeměna podle IČO (nic se neukládá)."""
+
+    def __init__(self, vznik: dict, premena: dict):
+        self.vznik, self.premena = vznik, premena
+
+    def subjekty_podle_ico(self, ica):
+        return {i: type("S", (), {"datum_vzniku": self.vznik[i], "je_fyzicka_osoba": False})() for i in ica if i in self.vznik}
+
+    def vznik_premenou(self, ico):
+        return self.premena.get(ico)
+
+
+def test_db_novy_subjekt_stari_v_den_toku_a_premeny(db_vlastni):
+    from pvk.core import klic_entity, zapis_entitu
+    from tests.test_souhrny import _pripravena_data
+
+    _pripravena_data(db_vlastni)  # tok vvz:Z1: 00255513 -> 45023522, záznamy F0 a F1
+    zapis_entitu(db_vlastni, "udalost", "u1", {"tok_id": str(klic_entity("tok", "vvz:Z1")),
+                                               "zdrojovy_zaznam_id": str(klic_entity("zdrojovy_zaznam", "vvz:F0")),
+                                               "typ": "uzavreni_smlouvy", "datum": date(2026, 9, 10)}, date(2026, 9, 10))
+    db_vlastni.commit()
+    p = ind.metodika("novy_subjekt")["parametry"]
+    assert ind.metodika("novy_subjekt")["kod"] == "ind-novy-subjekt-2026.09.2"
+    mlady = _KotvaVznik({"45023522": date(2026, 3, 1)}, {"45023522": False})
+    v = ind.novy_subjekt(db_vlastni, p, mlady)
+    assert [(x.ico, x.obdobi_od, int(x.hodnota)) for x in v] == [("45023522", date(2026, 9, 10), 193)]  # den toku = smlouva
+    assert ind.novy_subjekt(db_vlastni, p, _KotvaVznik({"45023522": date(2026, 3, 1)}, {"45023522": True})) == []  # přeměna
+    assert ind.novy_subjekt(db_vlastni, p, _KotvaVznik({"45023522": date(2026, 3, 1)}, {})) == []  # OR nedostupný
+    stary = ind.novy_subjekt(db_vlastni, p, _KotvaVznik({"45023522": date(2000, 1, 1)}, {"45023522": True}))
+    assert len(stary) == 1 and int(stary[0].hodnota) > 365  # starý subjekt: přeměna nerozhoduje, jen stáří
+
+
+def test_db_zakonna_zkraceni_lhut(db_vlastni):
+    from pvk.normalizace.__main__ import zapis_limity
+
+    zapis_limity(db_vlastni)
+    p = ind.metodika("zkracene_lhuty")["parametry"]
+    f = {"druh_rizeni": "open", "zahajeni": date(2026, 9, 1), "nadlimitni": True, "povaha": "services"}
+    assert ind.minimalni_lhuta(db_vlastni, f, p["zkraceni"])[1:] == (30, "dny")
+    assert ind.minimalni_lhuta(db_vlastni, {**f, "predbezne_oznameni": True}, p["zkraceni"])[1:] == (15, "dny")  # § 57/2a
+    assert ind.minimalni_lhuta(db_vlastni, {**f, "nalehavost": True}, p["zkraceni"])[1:] == (15, "dny")  # § 57/2b
+    assert ind.minimalni_lhuta(db_vlastni, {**f, "povaha": "works", "predbezne_oznameni": True},
+                               p["zkraceni"])[1:] == (30, "dny")  # stavební práce se nezkracují
+    pod = {**f, "nadlimitni": False, "povaha": "supplies", "predbezne_oznameni": True}
+    assert ind.minimalni_lhuta(db_vlastni, pod, p["zkraceni"])[1:] == (10, "pracovni_dny")  # § 54/4: 15 - 5

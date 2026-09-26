@@ -1,0 +1,28 @@
+{
+  "kod": "ind-novy-subjekt-2026.09.2",
+  "popis": "Nový subjekt: stáří dodavatele v den toku (dny od vzniku podle kotvy); přeměny nejsou nový subjekt",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 1,
+    "min_zaklad": null,
+    "max_stari_dnu": 365,
+    "stav": "spocteno",
+    "den_toku": "datum uzavření smlouvy k toku (událost uzavreni_smlouvy), jinak začátek platnosti toku",
+    "zdroje": [
+      [
+        "vvz",
+        [
+          "vvz",
+          "vvz_detail"
+        ]
+      ],
+      [
+        "dotaceeu_2127",
+        [
+          "dotaceeu_2127"
+        ]
+      ]
+    ]
+  }
+}

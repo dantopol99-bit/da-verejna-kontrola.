@@ -1,0 +1,31 @@
+{
+  "kod": "ind-zkracene-lhuty-2026.09.2",
+  "popis": "Zkrácené lhůty: podíl otevřených řízení s lhůtou kratší než zákonné minimum v den zahájení, se zákonnými zkráceními",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 5,
+    "min_zaklad": null,
+    "stav": "spocteno",
+    "zkraceni": {
+      "podlimitni_otevrene_predbezne_oznameni": {
+        "o_pracovnich_dnu": 5,
+        "zdroj": "§ 54 odst. 4 zákona č. 134/2016 Sb., e-Sbírka https://e-sbirka.gov.cz/sb/2016/134/2025-04-03 (ELI /eli/cz/sb/2016/134/2025-04-03/dokument/norma/…/par_54/odst_4)"
+      },
+      "nadlimitni_otevrene_dodavky_sluzby_predbezne_oznameni": {
+        "na_dnu": 15,
+        "zdroj": "§ 57 odst. 2 písm. a) zákona č. 134/2016 Sb., e-Sbírka https://e-sbirka.gov.cz/sb/2016/134/2025-04-03"
+      },
+      "nadlimitni_otevrene_dodavky_sluzby_nalehavost": {
+        "na_dnu": 15,
+        "zdroj": "§ 57 odst. 2 písm. b) zákona č. 134/2016 Sb., e-Sbírka https://e-sbirka.gov.cz/sb/2016/134/2025-04-03"
+      }
+    },
+    "overeno": "2026-09-26, znění 03.04.2025–31.12.2026",
+    "priznaky_eforms": {
+      "predbezne_oznameni": "BT-125(i)-Lot (identifikátor předchozího plánování)",
+      "nalehavost": "BT-106-Procedure (zrychlený postup)"
+    },
+    "neoverovano": "lhůta mezi předběžným oznámením a zahájením (35 dnů / 16 pracovních dnů – 12 měsíců) a prodloužení podle § 57 odst. 1 – výsledek je proto jen signál"
+  }
+}

@@ -546,3 +546,42 @@ odštěpení, nástupnictví, změna právní formy) – subjekt vzniklý přem�
 **Rozhodnutí.** `docs/prahy_navrh.md` obsahuje rozložení hodnot ve srovnávacích skupinách a návrh prahů
 (p90, u počtů p95, skupinově jen při n ≥ 30). Prahy **nejsou schválené**; schvaluje je vlastník metodiky
 a zapíší se novou verzí metodiky před dalším měřením (D-020, D-029).
+
+## D-052 Prahy: metoda v0.9 schválena, hodnoty ne
+
+**Rozhodnutí (vlastník metodiky, 26. 9. 2026).** Metoda z `docs/prahy_navrh.md` – 90. percentil (podíly), 95. percentil
+(počty), skupinově od 30 výsledků, jinak celkový práh – je prozatímní metodika v0.9 (`metodika/prahy-0.9.json`).
+Konkrétní hodnoty **nejsou schválené**; přepočítají se a schválí na nejméně 12 měsících dat.
+**Důsledky.** `"hodnoty_schvaleny": false`; publikační brána odmítne výsledek označený jako nad prahem nebo nesoucí
+hodnotu prahu (`nad_prahem`, `prah`, `oznaceni_prahu` → `PRAH_NESCHVALEN`), dokud všechny verze metodiky prahů
+neuvádějí schválené hodnoty. Testy v `tests/test_publikacni_podminky.py`.
+
+## D-053 Nové verze metodik: nový subjekt a zkrácené lhůty; stav metodiky v bráně
+
+**Rozhodnutí.**
+* Nový subjekt (`ind-novy-subjekt-2026.09.2`): **stáří subjektu v den toku** – dny od vzniku podle kotvy k datu
+  uzavření smlouvy k toku (jinak začátku platnosti toku); každý tok se hodnotí sám, bez historie prvního toku;
+  přeměny (ostatní skutečnosti v OR) dál nejsou nový subjekt. Zdroje VVZ a seznam operací (zakázky v projektech).
+* Zkrácené lhůty (`ind-zkracene-lhuty-2026.09.2`): zákonná zkrácení podle e-Sbírky (znění 3. 4. 2025 – 31. 12. 2026):
+  podlimitní otevřené řízení až o 5 pracovních dnů při předběžném oznámení (§ 54 odst. 4), nadlimitní otevřené
+  řízení na dodávky a služby na 15 dnů při předběžném oznámení nebo naléhavosti (§ 57 odst. 2); příznaky eForms
+  BT-125(i)-Lot a BT-106-Procedure. Neověřuje se časový odstup předběžného oznámení a prodloužení podle § 57 odst. 1.
+* Předchozí verze mají stav `nahrazena`. Pohled `ind.indikator_k_publikaci` (migrace 0013) i brána nevydají výsledky
+  metodiky ve stavu `ceka_na_zdroj`, `neuplna_metodika` nebo `nahrazena` (`INDIKATOR_METODIKA_NAHRAZENA`,
+  `INDIKATOR_NEUPLNA_METODIKA`). Staré výsledky zůstávají v `ind` (pouze INSERT).
+
+## D-054 Názvosloví: „rizikové pásmo“ podle kotvy; brána hlídá výstupní texty
+
+**Rozhodnutí.** Čekající indikátor se jmenuje jako pojem kotvy: `rizikove_pasmo` (metodika `ind-rizikove-pasmo-2026.09`;
+dříve „dodavatel ve sledovaném pásmu kotvy“, D-050). Brána kontroluje hodnotící výrazy jen ve výstupních textech
+(pole `text` výstupů a textové výstupní soubory), ne v interních názvech (kódy indikátorů, metodik, funkce); interní
+názvy dnes neblokovala a kontrola výstupů se nemění – „rizikový dodavatel“ ve výstupním textu dál neprojde (test
+`test_interni_nazvy_neblokuji_kontrola_textu_zustava`).
+
+## D-055 Kontrolní sada, rozhraní pro kotvu, předání
+
+**Rozhodnutí.** `docs/kontrolni_sada.csv` (`python -m pvk.kontrolni_sada`): případy podle skupin metodiky z dostupných
+dat (zakázky s částmi, zrušená řízení, dotace se stavem k datu, cizí měna, subjekty po přeměně – jen právnické osoby,
+strany bez IČO – jen názvy vynechaných polí), sloupec `potvrzeno` vyplní člověk; skupiny registru smluv „čeká na
+zdroj“. Rozhraní pro kotvu: schéma `pvk.verejne_penize` 1.0 (`docs/rozhrani_kotva.md`, `pvk.rozhrani`). Předání
+a postup prvního spuštění: `docs/stav.md`. Nové dokumenty kontroluje publikační brána.

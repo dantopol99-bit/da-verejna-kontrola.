@@ -6,7 +6,7 @@ Počítá se v rámci jednoho zdroje (D-026). Texty jsou popisné, bez hodnotíc
 
 Spočítané na skutečných datech: koncentrace_dodavatele, jedina_nabidka, zkracene_lhuty,
 opakovany_prijemce, novy_subjekt. Čekající na zdroj (jen funkce a testy na vzorových datech):
-deleni_pod_limit (registr smluv), dodavatel_pasmo_kotvy (kotva), zmena_struktury (obchodní rejstřík z kotvy).
+deleni_pod_limit (registr smluv), rizikove_pasmo (rizikové pásmo podle kotvy), zmena_struktury (obchodní rejstřík z kotvy).
 Závislost na veřejných penězích se ve v1 nevydává (D-027).
 """
 
@@ -26,11 +26,14 @@ from pvk.core import zajisti_metodiku
 from pvk.zdroje import vvz as vvz_zdroj
 
 POCITANE = ("koncentrace_dodavatele", "jedina_nabidka", "zkracene_lhuty", "opakovany_prijemce", "novy_subjekt")
-CEKAJICI = ("deleni_pod_limit", "dodavatel_pasmo_kotvy", "zmena_struktury")
+CEKAJICI = ("deleni_pod_limit", "rizikove_pasmo", "zmena_struktury")
+# platná verze metodiky indikátoru (starší verze mají stav „nahrazena“ a jejich výsledky se nepublikují)
+VERZE = {"novy_subjekt": "2026.09.2", "zkracene_lhuty": "2026.09.2"}
 
 
-def metodika(kod: str) -> dict:
-    return json.loads((KOREN / "metodika" / f"ind-{kod}-2026.09.json").read_text(encoding="utf-8"))
+def metodika(kod: str, verze: str | None = None) -> dict:
+    verze = verze or VERZE.get(kod, "2026.09")
+    return json.loads((KOREN / "metodika" / f"ind-{kod}-{verze}.json").read_text(encoding="utf-8"))
 
 
 @dataclass
@@ -163,6 +166,8 @@ def formulare_vvz(conn: psycopg.Connection) -> list[dict]:
             "nabidky": u["pocet_nabidek"], "druh_rizeni": u["druh_rizeni"], "typ": u["typ_oznameni"],
             "nadlimitni": bool(data.get("uverejnitTed")), "zahajeni": zahajeni, "lhuta": lhuty[0] if lhuty else None,
             "povaha": next(iter(vvz_zdroj._hodnoty(root, "BT-23-Procedure")), None),
+            "predbezne_oznameni": bool(vvz_zdroj._hodnoty(root, "BT-125(i)-Lot")),
+            "nalehavost": any(x is True or str(x).lower() == "true" for x in vvz_zdroj._hodnoty(root, "BT-106-Procedure")),
         })
     return vysledek
 
@@ -227,7 +232,7 @@ def limit_k_datu(conn: psycopg.Connection, kod: str, den: date) -> tuple[int, st
     return (int(r["hodnota"]), r["jednotka"]) if r else None
 
 
-def minimalni_lhuta(conn: psycopg.Connection, f: dict) -> tuple[str, int, str] | None:
+def minimalni_lhuta(conn: psycopg.Connection, f: dict, zkraceni: dict | None = None) -> tuple[str, int, str] | None:
     """Zákonné minimum lhůty pro podání nabídek platné v den zahájení (jen otevřené řízení; ostatní druhy
     mají lhůtu od výzvy, ne od oznámení, a z oznámení se nepočítají)."""
     if f["druh_rizeni"] != "open" or f["zahajeni"] is None:
@@ -238,7 +243,22 @@ def minimalni_lhuta(conn: psycopg.Connection, f: dict) -> tuple[str, int, str] |
         kod = ("lhuta_nabidky_podlimitni_otevrene_stavby" if f["povaha"] == "works"
                else "lhuta_nabidky_podlimitni_otevrene_dodavky_sluzby")
     lim = limit_k_datu(conn, kod, f["zahajeni"])
-    return (kod, *lim) if lim else None
+    if not lim:
+        return None
+    minimum, jednotka = lim
+    # zákonná zkrácení (metodika ind-zkracene-lhuty-2026.09.2, ověřeno v e-Sbírce): podlimitní § 54 odst. 4,
+    # nadlimitní dodávky a služby § 57 odst. 2 (předběžné oznámení nebo naléhavost)
+    z = (zkraceni or {})
+    if not f["nadlimitni"] and f.get("predbezne_oznameni") and "podlimitni_otevrene_predbezne_oznameni" in z:
+        minimum -= int(z["podlimitni_otevrene_predbezne_oznameni"]["o_pracovnich_dnu"])
+        kod += "+zkraceni_54_4"
+    elif f["nadlimitni"] and f["povaha"] != "works" and (f.get("predbezne_oznameni") or f.get("nalehavost")):
+        klic = ("nadlimitni_otevrene_dodavky_sluzby_predbezne_oznameni" if f.get("predbezne_oznameni")
+                else "nadlimitni_otevrene_dodavky_sluzby_nalehavost")
+        if klic in z:
+            minimum = min(minimum, int(z[klic]["na_dnu"]))
+            kod += "+zkraceni_57_2"
+    return kod, minimum, jednotka
 
 
 def zkracene_lhuty(conn: psycopg.Connection, formulare: list[dict], p: dict) -> list[Vysledek]:
@@ -250,10 +270,11 @@ def zkracene_lhuty(conn: psycopg.Connection, formulare: list[dict], p: dict) -> 
     od, do = _obdobi(zahajene)
     skupiny: dict[tuple[str, str], list[bool]] = defaultdict(list)
     for f in zahajene:
-        m = minimalni_lhuta(conn, f)
+        m = minimalni_lhuta(conn, f, p.get("zkraceni"))
         if m is None:
             continue
         kod, minimum, jednotka = m
+        kod = kod.split("+", 1)[0]  # srovnávací skupina = druh limitu (zkrácení se promítá jen do minima)
         delka = pracovni_dny(f["zahajeni"], f["lhuta"]) if jednotka == "pracovni_dny" else (f["lhuta"] - f["zahajeni"]).days
         skupiny[(f["zadavatel"], kod)].append(delka < minimum)
     vysledky = []
@@ -262,7 +283,8 @@ def zkracene_lhuty(conn: psycopg.Connection, formulare: list[dict], p: dict) -> 
         vysledky.append(Vysledek(
             "zkracene_lhuty", zadavatel, od, do, len(kratke), Decimal(len(kratke)), Decimal(k / len(kratke)).quantize(Decimal("0.0001")),
             kod, f"Signál k prověření: u {k} z {len(kratke)} otevřených řízení zadavatele byla lhůta pro nabídky kratší "
-            f"než zákonné minimum platné v den zahájení ({kod}); zákon v některých případech zkrácení připouští."))
+            f"než zákonné minimum platné v den zahájení ({kod}), i po zohlednění zákonných zkrácení (§ 54 odst. 4, "
+            f"§ 57 odst. 2)."))
     return vysledky
 
 
@@ -304,35 +326,42 @@ def opakovany_prijemce(conn: psycopg.Connection, p: dict) -> list[Vysledek]:
 
 
 def novy_subjekt(conn: psycopg.Connection, p: dict, kotva) -> list[Vysledek]:
-    """Stáří dodavatele (právnické osoby) v dnech od vzniku podle kotvy při první smlouvě ve VVZ (BT-145);
-    signálem je stáří do `max_stari_dnu` (práh ke schválení). U dodavatele do `max_stari_dnu` se ověří přeměna:
-    subjekt vzniklý přeměnou (fúze, rozdělení, změna právní formy – ostatní skutečnosti v OR) nový není a spolu
-    se subjektem bez dostupného záznamu OR se nehodnotí. Z kotvy se nic neukládá."""
-    radky = conn.execute(
-        """SELECT s.ico, min(u.datum) AS prvni, count(DISTINCT t.tok_id) AS toku
-             FROM core.udalost_aktualni u JOIN core.tok_aktualni t ON t.tok_id = u.tok_id
-             JOIN core.subjekt_aktualni s ON s.subjekt_id = t.prijemce_subjekt_id AND s.valid_to = 'infinity'
-             JOIN core.zdrojovy_zaznam_aktualni z ON z.zdrojovy_zaznam_id = u.zdrojovy_zaznam_id
-            WHERE u.typ = 'uzavreni_smlouvy' AND z.zdroj = 'vvz_detail' GROUP BY s.ico""").fetchall()
-    if not radky:
-        return []
-    subjekty = kotva.subjekty_podle_ico([r["ico"] for r in radky])
-    od = min(r["prvni"] for r in radky)
-    do = max(r["prvni"] for r in radky) + timedelta(days=1)
+    """Stáří dodavatele (právnické osoby) v den toku: dny od vzniku podle kotvy k datu uzavření smlouvy k toku
+    (událost uzavreni_smlouvy), jinak k začátku platnosti toku. Každý tok se hodnotí sám, bez historie prvního
+    toku. Signálem je stáří do `max_stari_dnu` (práh podle D-052); u takového dodavatele se ověří přeměna –
+    subjekt vzniklý přeměnou (fúze, rozdělení, změna právní formy podle ostatních skutečností v OR) nový není
+    a spolu se subjektem bez dostupného záznamu OR se nehodnotí. Z kotvy se nic neukládá."""
     vysledky = []
-    for r in radky:
-        s = subjekty.get(r["ico"])
-        if s is None or s.datum_vzniku is None or s.je_fyzicka_osoba is not False:
-            continue  # fyzické osoby se nezobrazují (pravidlo 4); bez data vzniku se nehodnotí
-        stari = (r["prvni"] - s.datum_vzniku).days
-        if stari < 0:
+    for zdroj, zdroje in p["zdroje"]:
+        radky = conn.execute(
+            """SELECT t.tok_id, s.ico, coalesce(min(u.datum), min(t.valid_from)) AS den
+                 FROM core.tok_aktualni t
+                 JOIN core.subjekt_aktualni s ON s.subjekt_id = t.prijemce_subjekt_id AND s.valid_to = 'infinity'
+                 JOIN core.tok_zdroj_aktualni tz ON tz.tok_id = t.tok_id
+                 JOIN core.zdrojovy_zaznam_aktualni z ON z.zdrojovy_zaznam_id = tz.zdrojovy_zaznam_id AND z.zdroj = ANY(%s)
+                 LEFT JOIN core.udalost_aktualni u ON u.tok_id = t.tok_id AND u.typ = 'uzavreni_smlouvy'
+                WHERE t.druh = 'verejna_zakazka' GROUP BY t.tok_id, s.ico""", (zdroje,)).fetchall()
+        if not radky:
             continue
-        if stari <= int(p["max_stari_dnu"]) and kotva.vznik_premenou(r["ico"]) is not False:
-            continue  # vznik přeměnou (nebo záznam OR nedostupný): nejde o nový subjekt, nehodnotí se
-        vysledky.append(Vysledek(
-            "novy_subjekt", r["ico"], od, do, r["toku"], Decimal(stari), Decimal(stari), "VVZ: dodavatelé se smlouvou",
-            f"Signál k prověření: dodavatel uzavřel první smlouvu v datech VVZ {stari} dní po vzniku (podle kotvy)"
-            + (" – do 365 dní od vzniku, přeměnou nevznikl." if stari <= int(p["max_stari_dnu"]) else ".")))
+        subjekty = kotva.subjekty_podle_ico(sorted({r["ico"] for r in radky}))
+        premena: dict[str, bool | None] = {}
+        for r in radky:
+            s = subjekty.get(r["ico"])
+            if s is None or s.datum_vzniku is None or s.je_fyzicka_osoba is not False:
+                continue  # fyzické osoby se nezobrazují (pravidlo 4); bez data vzniku se nehodnotí
+            stari = (r["den"] - s.datum_vzniku).days
+            if stari < 0:
+                continue
+            if stari <= int(p["max_stari_dnu"]):
+                if r["ico"] not in premena:
+                    premena[r["ico"]] = kotva.vznik_premenou(r["ico"])
+                if premena[r["ico"]] is not False:
+                    continue  # vznik přeměnou (nebo záznam OR nedostupný): nejde o nový subjekt
+            vysledky.append(Vysledek(
+                "novy_subjekt", r["ico"], r["den"], r["den"] + timedelta(days=1), 1, Decimal(1), Decimal(stari),
+                f"{zdroj}: dodavatelé v den toku",
+                f"Signál k prověření: dodavatel byl v den toku ({r['den']:%d. %m. %Y}, {zdroj}) {stari} dní od vzniku "
+                f"(podle kotvy)" + (", přeměnou nevznikl." if stari <= int(p["max_stari_dnu"]) else ".")))
     return vysledky
 
 
@@ -359,9 +388,10 @@ def deleni_pod_limit(smlouvy: list[dict], limit_czk: Decimal, okno_dni: int) -> 
     return signaly
 
 
-def dodavatel_pasmo_kotvy(zakazky: list[dict], pasma: dict[str, str], sledovana: set[str]) -> dict[str, dict]:
-    """Kotva (čeká na zdroj): podíl objemu zadavatele u dodavatelů, které kotva řadí do sledovaného pásma
-    (např. finanční ukazatele). zakazky: {ico_zadavatele, ico_dodavatele, hodnota}; pasma: IČO -> pásmo kotvy."""
+def rizikove_pasmo(zakazky: list[dict], pasma: dict[str, str], sledovana: set[str]) -> dict[str, dict]:
+    """Kotva (čeká na zdroj): podíl objemu zadavatele u dodavatelů, které kotva řadí do rizikového pásma
+    (pojem a hodnoty pásma přebírá z kotvy). zakazky: {ico_zadavatele, ico_dodavatele, hodnota};
+    pasma: IČO -> rizikové pásmo podle kotvy; sledovana: pásma, která se počítají."""
     objem, ve_pasmu = defaultdict(Decimal), defaultdict(Decimal)
     pocet = defaultdict(int)
     for z in zakazky:
