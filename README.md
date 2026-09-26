@@ -16,7 +16,12 @@ na kotvu – Firemní databázi – přes IČO.
 cp .env.example .env     # volitelné
 make test                # vytvoří .venv, spustí PostgreSQL, migrace a testy
 make pilot               # celý pilot jedním příkazem
+make sber                # sběr všech zdrojů do raw za poslední měsíc (nedostupný zdroj se přeskočí)
+make sber-stav           # přehled posledních běhů sběru
 ```
+
+Registr smluv, NEN, ISVZ a CEDR odmítají spojení z cloudových adres; z české sítě poběží stejným
+`make sber` bez úprav (viz [docs/sources.md](docs/sources.md), oddíl 8).
 
 Požadavky: Python 3.12, Docker (nebo lokální PostgreSQL 16), pro OCR skenovaných smluv
 `tesseract-ocr`, `tesseract-ocr-ces` a `poppler-utils`.

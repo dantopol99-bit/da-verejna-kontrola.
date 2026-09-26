@@ -105,6 +105,7 @@ class Stahovac:
         self.conn = conn
         self.nast = konfigurace or nastaveni()
         self.offline = offline
+        self.beh_id: int | None = None  # běh sběru (raw.beh), ke kterému se stažení eviduje
         self.uloziste = self.nast.data_dir / "raw"
         self.session = requests.Session()
         self.session.headers["User-Agent"] = self.nast.user_agent
@@ -230,6 +231,7 @@ class Stahovac:
                 chyba=chyba,
                 metoda=metoda,
                 parametry=parametry,
+                beh_id=self.beh_id,
             )
             self.conn.commit()
             return Odpoved(stazeni_id, plna_url, None, None, None, None, False, cas, chyba)
@@ -254,6 +256,7 @@ class Stahovac:
             metoda=metoda,
             parametry=parametry,
             hlavicky=hlavicky,
+            beh_id=self.beh_id,
         )
         self.conn.commit()
         return Odpoved(stazeni_id, plna_url, status, sha, cil, content_type, False, cas, hlavicky=hlavicky)

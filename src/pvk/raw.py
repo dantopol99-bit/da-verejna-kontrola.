@@ -77,12 +77,13 @@ def zapis_stazeni(
     metoda: str = "GET",
     parametry: Mapping | None = None,
     hlavicky: Mapping[str, str] | None = None,
+    beh_id: int | None = None,
 ) -> int:
     row = conn.execute(
         """
         INSERT INTO raw.stazeni (zdroj, url, metoda, parametry, cas_stazeni, http_status, sha256, velikost,
-                                 soubor, content_type, chyba, hlavicky)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                 soubor, content_type, chyba, hlavicky, beh_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -98,6 +99,7 @@ def zapis_stazeni(
             content_type,
             chyba,
             _jsonb(dict(hlavicky)) if hlavicky else None,
+            beh_id,
         ),
     ).fetchone()
     return row["id"] if isinstance(row, Mapping) else row[0]
@@ -114,21 +116,26 @@ def zapis_zaznam(
     format: str,
     stazeni_id: int | None = None,
     redigovat: Iterable[str] = (),
+    ulozeny_obsah: Mapping | None = None,
+    beh_id: int | None = None,
 ) -> int:
     """Uloží zdrojový záznam. Hash se počítá z původního záznamu; pole v `redigovat`
     (osobní údaje fyzických osob bez IČO) se do obsahu neuloží a jejich jména se zapíší do `redigovano`.
+    U vnořených polí předá volající už redigovaný `ulozeny_obsah` a v `redigovat` cesty k vynechaným polím.
     Vrací id řádku (nového, nebo již existujícího se stejným hashem)."""
     redigovat = sorted(set(redigovat))
     h = hash_zaznamu(obsah)
-    ulozeny = {k: v for k, v in obsah.items() if k not in redigovat}
+    if ulozeny_obsah is None:
+        ulozeny_obsah = {k: v for k, v in obsah.items() if k not in redigovat}
     row = conn.execute(
         """
-        INSERT INTO raw.zaznam (zdroj, id_ve_zdroji, url, cas_stazeni, hash, stazeni_id, format, obsah, redigovano)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO raw.zaznam (zdroj, id_ve_zdroji, url, cas_stazeni, hash, stazeni_id, format, obsah, redigovano,
+                                beh_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (zdroj, id_ve_zdroji, hash) DO NOTHING
         RETURNING id
         """,
-        (zdroj, str(id_ve_zdroji), url, cas_stazeni, h, stazeni_id, format, _jsonb(ulozeny), redigovat),
+        (zdroj, str(id_ve_zdroji), url, cas_stazeni, h, stazeni_id, format, _jsonb(ulozeny_obsah), redigovat, beh_id),
     ).fetchone()
     if row is None:
         row = conn.execute(
