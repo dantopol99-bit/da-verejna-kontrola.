@@ -23,7 +23,7 @@ from pvk.config import nastaveni
 from pvk.db import pripoj
 from pvk.http import Stahovac
 from pvk.sber import spust
-from pvk.sber.sberace import SBERACE, uplnost_vvz_detail
+from pvk.sber.sberace import SBERACE, VYVOJOVE_SBERACE, uplnost_vvz_detail
 from pvk.zdroje import zaregistruj_zdroje
 
 
@@ -44,15 +44,17 @@ def vychozi_obdobi(dnes: date | None = None) -> tuple[date, date]:
 
 
 def sber(zdroje: list[str], od: date, do: date, limit_minut: float | None = None) -> int:
-    nezname = [z for z in zdroje if z not in SBERACE]
+    # vývojové vzorky (D-040) jen výslovně vyjmenované, nikdy ve výchozím seznamu make sber
+    sberace = SBERACE | VYVOJOVE_SBERACE
+    nezname = [z for z in zdroje if z not in sberace]
     if nezname:
-        print(f"neznámé zdroje: {', '.join(nezname)} (dostupné: {', '.join(SBERACE)})", file=sys.stderr)
+        print(f"neznámé zdroje: {', '.join(nezname)} (dostupné: {', '.join(sberace)})", file=sys.stderr)
         return 2
     nast = nastaveni()
     with pripoj(nast.database_url) as conn:
         zaregistruj_zdroje(conn)
         stahovac = Stahovac(conn, nast)
-        stavy = [(z, *spust(conn, stahovac, SBERACE[z], od, do, limit_minut)) for z in zdroje]
+        stavy = [(z, *spust(conn, stahovac, sberace[z], od, do, limit_minut)) for z in zdroje]
         print(f"\nsběr za období {od} – {do} (bez posledního dne):")
         for zdroj, beh_id, stav in stavy:
             print(f"  {zdroj:<15} běh {beh_id:<6} {stav}")

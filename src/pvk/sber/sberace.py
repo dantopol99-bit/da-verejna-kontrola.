@@ -33,6 +33,8 @@ from pvk.sber import LOG, Beh, Sberac
 from pvk.zdroje import dotace as dotace_zdroje
 from pvk.zdroje import registr_smluv as rs
 from pvk.zdroje import vvz
+from pvk.zdroje.hlidac import HS_URL, HlidacRS
+from pvk.zdroje.hlidac import ZDROJ as HS_ZDROJ
 
 # --- společné pomocníky --------------------------------------------------------------------------
 
@@ -629,6 +631,48 @@ def sber_dotaceeu(beh: Beh) -> None:
     if hlavicka is None:
         raise RuntimeError("seznam operací: hlavička s 'IČ příjemce' nenalezena")
 
+
+# --- Vývojový vzorek registru smluv ze zrcadla Hlídač státu (D-040) --------------------------------
+
+RS_VZOREK_POCET = int(os.environ.get("PVK_RS_VZOREK_POCET", "300"))
+
+
+def sber_rs_vyvojovy_vzorek(beh: Beh) -> None:
+    """Vývojový vzorek smluv ze zrcadla registru smluv (D-040): nejnověji zveřejněné smlouvy po dnech
+    zpět od konce období, do počtu RS_VZOREK_POCET. Záznamy mají v raw příznak vyvojovy_vzorek – slouží
+    jen k vývoji normalizace, nikdy jako zdroj publikovaných dat. Oficiální zdroj je z cloudu blokovaný
+    (D-033). Dotazy šetrně (≥ 1 s, pvk.http), časový limit běhu přes --limit-minut."""
+    hs = HlidacRS(beh.stahovac, vyvojovy_vzorek=True)
+    ids: list[str] = []
+    den = beh.do - timedelta(days=1)
+    while len(ids) < RS_VZOREK_POCET and den >= beh.od and beh.zbyva_sekund() > 0:
+        _celkem, radky = hs.hledej(f"zverejneno:[{den.isoformat()} TO {den.isoformat()}]", max_stran=40)
+        ids += [r.id_verze for r in radky if r.id_verze not in ids]
+        den -= timedelta(days=1)
+    ids = ids[:RS_VZOREK_POCET]
+    p = beh.vysledek.parametry
+    p.update({"vyvojovy_vzorek": True, "vybrano_id": len(ids), "posledni_den_hledani": den + timedelta(days=1)})
+    beh.vysledek.pocet_ve_zdroji = len(ids)
+    stazeno = 0
+    for idv in ids:
+        if beh.zbyva_sekund() <= 0:
+            p["ukonceno"] = "časový limit běhu"
+            break
+        z, odp = hs.detail(idv)
+        if z is None:
+            beh.vysledek.chyby.append(f"{idv}: {odp.status or odp.chyba}")
+            continue
+        beh.zaznam(z.id_verze, odp.url, odp, z.jako_dict(), "html", vyvojovy_vzorek=True)
+        stazeno += 1
+        if stazeno % 25 == 0:
+            beh.conn.commit()
+    p["stazeno"] = stazeno
+
+
+VYVOJOVE_SBERACE: dict[str, Sberac] = {
+    HS_ZDROJ: Sberac(HS_ZDROJ, f"{HS_URL}/Detail/39673953", sber_rs_vyvojovy_vzorek,
+                     "vývojový vzorek registru smluv ze zrcadla Hlídač státu (D-040) – jen výslovně, ne v make sber"),
+}
 
 # --- registr stahovačů (pořadí = pořadí v make sber) ----------------------------------------------
 

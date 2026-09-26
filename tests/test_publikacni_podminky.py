@@ -339,3 +339,77 @@ def test_db_min_zaklad_null_znamena_bez_minima_objemu(db):
     assert db.execute(
         "SELECT count(*) AS n FROM ind.indikator_k_publikaci WHERE metodika_verze_id = %s", (klic,)
     ).fetchone()["n"] == 1
+
+
+# --- D-039: dotační údaj nese stav k datu; D-040: vývojový vzorek se nepublikuje ------------------
+
+DOTACE = {"typ": "dotace_priznana", "mena": "CZK", "dph_rezim": "mimo_dph", "perioda": "celkem", "hodnota": "100"}
+
+
+@pytest.mark.parametrize(
+    "vystup",
+    [
+        {"druh": "castka", **DOTACE},
+        {"druh": "castka", **DOTACE, "stav_k_datu": ""},
+        {"druh": "castka", **DOTACE, "stav_k_datu": "nevime"},
+        {"druh": "castka", **{**DOTACE, "typ": "dotace_cerpana"}},
+        {"druh": "castka", **{**DOTACE, "typ": "vratka"}},
+        {"druh": "castka", **CASTKA, "zdroj": "red"},
+        {"druh": "souhrn", "castky": [DOTACE], "podil_heuristicke_deduplikace": 0},
+        {**DOBRY_INDIKATOR, "typ_castky": "dotace_priznana"},
+        {**DOBRY_INDIKATOR, "zdroj": "dotaceeu_2127"},
+    ],
+)
+def test_dotacni_udaj_bez_stavu_k_datu_neprojde(vystup):
+    p = publikace.over_vystup(vystup, {"pilot-2026.09": METODIKA}, "test")
+    assert "DOTACE_BEZ_STAVU_K_DATU" in kody(p)
+
+
+@pytest.mark.parametrize(
+    "vystup",
+    [
+        {"druh": "castka", **DOTACE, "stav_k_datu": "2026-02-21"},
+        {"druh": "souhrn", "castky": [DOTACE], "podil_heuristicke_deduplikace": 0, "stav_k_datu": "2026-02-21"},
+        {**DOBRY_INDIKATOR, "typ_castky": "dotace_priznana", "stav_k_datu": "2026-02-21"},
+        {"druh": "castka", **CASTKA},  # nedotační částka stav k datu nepotřebuje
+    ],
+)
+def test_dotacni_udaj_se_stavem_k_datu_projde(vystup):
+    assert publikace.over_vystup(vystup, {"pilot-2026.09": METODIKA}, "test") == []
+
+
+def test_brana_shodi_build_pri_dotaci_bez_stavu_k_datu(tmp_path):
+    assert _repo_s_vystupem(tmp_path, [DOBRY_INDIKATOR, {"druh": "castka", **DOTACE}]) == 1
+    (tmp_path / "b").mkdir()
+    assert _repo_s_vystupem(tmp_path / "b", [{"druh": "castka", **DOTACE, "stav_k_datu": "2026-02-21"}]) == 0
+
+
+@pytest.mark.parametrize(
+    "vystup",
+    [{"druh": "castka", **CASTKA, "zdroj": "hlidac_statu_rs"}, {"druh": "castka", **CASTKA, "vyvojovy_vzorek": True},
+     {**DOBRY_INDIKATOR, "vyvojovy_vzorek": True}],
+)
+def test_vyvojovy_vzorek_se_nepublikuje(vystup):
+    assert "VYVOJOVY_VZOREK" in kody(publikace.over_vystup(vystup, {"pilot-2026.09": METODIKA}, "test"))
+
+
+def test_db_dotacni_vysledek_bez_stavu_dat_se_nepublikuje(db, metodika_id):
+    for kod, typ, stav in [("dotace_bez_stavu", "dotace_priznana", None), ("dotace_se_stavem", "dotace_priznana",
+                           "2026-02-21"), ("smlouvy", "smluvni", None)]:
+        db.execute(
+            "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, typ_castky, "
+            "stav_dat_k, metodika_verze_id) VALUES (%s, '2025-01-01', '2026-01-01', 40, %s, %s, %s)",
+            (kod, typ, stav, metodika_id),
+        )
+    publikovatelne = {r["indikator_kod"] for r in db.execute(
+        "SELECT indikator_kod FROM ind.indikator_k_publikaci WHERE metodika_verze_id = %s", (metodika_id,))}
+    assert publikovatelne == {"dotace_se_stavem", "smlouvy"}
+    for stav in (None, "2026-02-21"):
+        db.execute(
+            "INSERT INTO ind.souhrn (kod, obdobi_od, obdobi_do, castka, pocet_castek, podil_heuristicke_deduplikace, "
+            "metodika_verze_id, stav_dat_k) VALUES ('dotace', '2025-01-01', '2026-01-01', "
+            "ROW('dotace_priznana','CZK','mimo_dph','celkem',1), 1, 0, %s, %s)",
+            (metodika_id, stav),
+        )
+    assert db.execute("SELECT count(*) AS n FROM ind.souhrn_k_publikaci WHERE metodika_verze_id = %s",
+                      (metodika_id,)).fetchone()["n"] == 1

@@ -396,3 +396,62 @@ označí jako neúplné a do srovnání se nezahrnují.
 a pohled k publikaci dotační údaj bez něj nesmí vydat (vynutí se testem publikačních podmínek s prvním
 dotačním výstupem). Zpoždění ReD se přeměřuje při každém sběru (poznámka běhu `okno_podle_dat`: datum
 exportu a poslední podpis).
+
+## D-040 Zrcadlo Hlídače státu jen jako vývojový vzorek, nikdy zdroj publikovaných dat
+
+**Kontext.** Blok 3 potřebuje reálné smlouvy registru smluv pro vývoj normalizace; oficiální data RS jsou
+z cloudu blokovaná (D-033). Zadání: 300 smluv ze zrcadla jako vývojový vzorek.
+**Rozhodnutí.** Rozšíření D-030: zrcadlo Hlídač státu smí kromě pilotu sloužit jen jako **vývojový vzorek**
+(`HlidacRS(..., vyvojovy_vzorek=True)`, stahovač `hlidac_statu_rs` jen výslovně
+`python -m pvk.sber sber --zdroje hlidac_statu_rs`, nikdy ve výchozím `make sber`). Záznamy nesou v raw příznak
+`raw.zaznam.vyvojovy_vzorek` (migrace 0008); záznam zrcadla bez příznaku databáze odmítne (CHECK, pro nové
+řádky) a `pvk.raw.zapis_zaznam` ho u zdroje zrcadla nastaví vždy. Publikační brána odmítne výstup
+s `vyvojovy_vzorek` nebo ze zdroje zrcadla (`VYVOJOVY_VZOREK`). Publikovaná data stojí jen na oficiálních zdrojích.
+**Stav 26. 9. 2026.** Zrcadlo ukončilo TLS spojení hned po ClientHello (stejně jako oficiální RS, D-012/D-033);
+test dostupnosti je v `raw.stazeni` a běh `preskoceno` v `raw.beh`. Ochrana se neobchází, vzorek RS v raw
+proto zatím není; stahovač poběží stejným příkazem, jakmile bude zdroj dostupný.
+
+## D-041 Normalizace raw -> core: toky, částky, IČO, kurzy
+
+**Rozhodnutí.**
+* **Tok v rámci jednoho zdroje** (D-026) s přirozeným klíčem: VVZ `vvz:<ev. číslo zakázky>` (všechny formuláře
+  zakázky – zahájení, výsledek, opravy, změny – se na tok navazují), seznam operací `dotaceeu_2127:<registrační
+  číslo>` (dotace) a `dotaceeu_2127:<reg#řádek>` (veřejná zakázka v projektu: příjemce dotace -> dodavatel),
+  IS ReD `red:<iriDotace>`. První záznam tok založí, další se navazují; každá vazba je v `core.tok_zdroj` jako
+  doložená (skóre 1, metoda `identifikator_ve_zdroji`) – tok určuje identifikátor ve zdroji, ne heuristika.
+* **Události, nic se nepřepisuje:** zveřejnění formuláře, oznámení o změně smlouvy (eForms 38–40) = `dodatek`,
+  příznak zrušení zakázky = `zruseni` (nový typ, migrace 0009), zneplatněný formulář = `zneplatneni`, uzavření
+  smlouvy (BT-145), podepsání právního aktu = `rozhodnuti_o_dotaci`.
+* **Bitemporalita:** `valid_from` = datum události ve světě (uveřejnění, uzavření, podpis právního aktu; čerpání
+  k datu souboru), `recorded_from` přiděluje databáze.
+* **Typ částky podle metodiky** `metodika/normalizace-2026.09.json` (pole zdroje -> typ, režim DPH, perioda);
+  částku bez pravidla nebo bez měny adaptér nezapíše a zapíše výjimku. Hodnoty eForms (BT-27, BT-720, BT-161)
+  jsou podle definice eForms bez DPH.
+* **IČO:** doplnění nul, kontrola modulo 11, neplatné -> výjimka. IČO, které platforma nezná, se ověří hromadně
+  v kotvě (`Kotva.subjekty_podle_ico`, v pilotu ARES `vyhledat` po 100 IČO); z kotvy se nic neukládá, do
+  `core.subjekt` jde jen IČO ověřené kotvou. Nenalezené IČO -> výjimka, strana toku zůstane neurčená s důvodem.
+* **Cizí měna:** kurz ČNB (roční soubor, kurz vyhlášený nejpozději v den uzavření, nejvýš 10 dní starý) do
+  `hodnota_czk`, `kurz_cnb`, `kurz_datum`; původní `hodnota` a `mena` zůstávají. Bez kurzu `prepocet =
+  'kurz_nedostupny'` a výjimka. Soubory kurzů jdou přes `Stahovac` (zdroj `cnb_kurzy`).
+* **Výjimky** v `core.normalizace_vyjimka` (pouze INSERT, jedna na záznam, druh a pole), běhy v
+  `core.normalizace_beh`. **Pokrytí** plátců (zadavatel/poskytovatel × zdroj, od kdy) je pohled `core.pokryti_platcu`.
+**Důsledky.** Zápis do core jde výhradně přes `core.zapis_verzi()` (hromadně `pvk.core.zapis_entity`, klíče z
+přirozených klíčů, D-015), opakovaný běh nic nezdvojí. Registr smluv se normalizuje, až bude v raw (D-040).
+Poskytovatele u seznamu operací (řídicí orgán) a u IS ReD (tabulka rozhodnutí) zdroj v raw zatím neuvádí jako IČO –
+tok má plátce neurčeného s důvodem.
+
+## D-042 Tabulka limitů ZZVZ s platností a zdrojem
+
+**Rozhodnutí.** Limity VZMR (§ 27) a minimální lhůty podle druhu řízení (§ 54, § 57, § 58, JŘSU) jsou
+v `metodika/limity-zzvz-2026.09.json` a v `core.limit` (bitemporálně, `pravni_zaklad` = ustanovení + URL + datum
+ověření). Ověřeno 26. 9. 2026 z aktuálního znění zákona č. 134/2016 Sb. na zakonyprolidi.cz (znění
+03.04.2025–31.12.2026), proto platnost `[2025-04-03, 2027-01-01)`. Dřívější znění nejsou bez přihlášení dostupná;
+hodnoty před 3. 4. 2025 ani přesné datum změny limitů VZMR se proto nezapisují, dokud nebudou ověřeny z veřejného
+zdroje (e-Sbírka). Hranice VZMR platí včetně („rovna nebo nižší“).
+
+## D-043 D-039 vynuceno publikační bránou
+
+**Rozhodnutí.** Brána `pvk.publikace` odmítne dotační údaj (částka/souhrn/indikátor dotačního typu nebo z dotačního
+zdroje) bez platného data v poli `stav_k_datu` (`DOTACE_BEZ_STAVU_K_DATU`); testy v
+`tests/test_publikacni_podminky.py`. V databázi: `ind.*.stav_dat_k` a pohledy `ind.*_k_publikaci` dotační výsledek
+bez něj nevydají (migrace 0008), `core.castka.stav_dat_k` je u dotačních částek povinný (migrace 0009).

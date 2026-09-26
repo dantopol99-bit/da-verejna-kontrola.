@@ -76,6 +76,29 @@ def zapis_entitu(
     return zapis_verzi(conn, tabulka, {**data, f"{tabulka}_id": str(klic)}, valid_from, valid_to)
 
 
+def zapis_entity(
+    conn: psycopg.Connection,
+    tabulka: str,
+    polozky: list[tuple[str, Mapping, date, date | None]],
+) -> list[UUID]:
+    """Hromadná varianta zapis_entitu(): [(přirozený klíč, data, valid_from, valid_to)] v jednom průchodu
+    (pipeline). Každá entita smí být v seznamu nejvýš jednou (verzi nelze uzavřít v transakci, kde vznikla)."""
+    if tabulka not in TABULKY_ENTIT:
+        raise ValueError(f"{tabulka} není entita core")
+    klice = [klic_entity(tabulka, k) for k, *_x in polozky]
+    if len(set(klice)) != len(klice):
+        raise ValueError(f"zapis_entity({tabulka}): duplicitní přirozený klíč v jednom zápisu")
+    with conn.cursor() as cur:
+        cur.executemany("INSERT INTO core.entita (id, typ) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+                        [(k, tabulka) for k in klice])
+        cur.executemany(
+            "SELECT core.zapis_verzi(%s::regclass, %s::jsonb, %s::date, %s::date)",
+            [(f"core.{tabulka}", kanonicky_json({**data, f"{tabulka}_id": str(k)}).decode("utf-8"),
+              _datum(od), _datum(do)) for k, (_p, data, od, do) in zip(klice, polozky, strict=True)],
+        )
+    return klice
+
+
 def subjekt_pro_ico(conn: psycopg.Connection, ico: str) -> UUID:
     """Subjekt (jen odkaz na IČO). Existuje-li aktuální verze, vrátí její klíč, jinak založí novou."""
     row = conn.execute(

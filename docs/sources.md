@@ -201,3 +201,23 @@ znovu – 5 364 formulářů, shodně s `X-Total-Count` i s ověřovacím během
 * **Evidenční číslo zakázky:** číslo zakázky ve VVZ (`Z…`, v souhrnu formuláře, zdroj `vvz`) má 100,0 % stažených formulářů. Identifikátor zakázky v NIPEZ (`RVZ…`, metadata detailu) má 82,0 %; chybí hlavně u zakázek evidovaných ve VVZ před rokem 2026 (487 z 1 099), u čísel `Z2026-…` jen u 68 z 1 992 (3,4 %). Pro párování se proto používá číslo VVZ.
 * **Lhůty** (BT-131 nabídky, BT-1311 žádosti o účast) jsou jen v oznámeních o zahájení: 99,6 %; **počet nabídek** jen ve výsledcích: 100,0 %; **druh řízení** 99,7 % zahájení a 100,0 % výsledků; **CPV** a **IČO zadavatele** prakticky vždy.
 * Nejčastější druhy formulářů mezi staženými: 29 (1 299), 16 (898), 38 (645), 17 (111), 39 (47). Stažená část je prvních 3 091 formulářů podle evidenčního čísla, ne náhodný vzorek měsíce; podíly se po dokončení přeměří.
+
+## 9. Blok 3 – vývojové vzorky a normalizace (26. 9. 2026)
+
+Vzorky stažené v nové session (časový rozpočet 8 minut, souběžně): VVZ souhrny za 26. 8. – 25. 9. 2026
+(5 364 formulářů), detail eForms s limitem 4 minuty (683 formulářů, zbytek naváže další běh, D-037), seznam
+operací 21+ (soubor 2026_09, 48 692 řádků), IS ReD – 23 dotací; stahování příjemců a rozhodnutí ReD přerušil
+časový limit (běh `nedokonceno` v `raw.beh`), proto dotace ReD zatím nemají příjemce ani částky (D-039: chybějící
+údaj není nula).
+
+* **Zrcadlo Hlídač státu** (vývojový vzorek RS, D-040): 26. 9. 2026 11:34 UTC server ukončil TLS spojení hned po
+  ClientHello (tunel proxy prostředí navázán, `recentRelayFailures` prázdné – odmítá cílový server). Záznam
+  v `raw.stazeni`, běh `preskoceno`. Neobchází se.
+* **Registr smluv – oficiální data**: jeden test dostupnosti 26. 9. 2026 – nedostupné (stejně jako D-033).
+* **ČNB – kurzy devizového trhu** (`cnb_kurzy`): roční soubory
+  `https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/kurzy-devizoveho-trhu/rok.txt?rok=RRRR`
+  dostupné; použití pro přepočet cizích měn (D-041).
+* **ARES** (kotva): hromadné ověření IČO `POST /ekonomicke-subjekty/vyhledat` s polem `ico` (100 na dotaz);
+  nic se neukládá (D-008).
+* **Zákon č. 134/2016 Sb.** pro tabulku limitů: `https://www.zakonyprolidi.cz/cs/2016-134` (aktuální znění
+  03.04.2025–31.12.2026); historická znění vyžadují přihlášení – neobchází se (D-042).
