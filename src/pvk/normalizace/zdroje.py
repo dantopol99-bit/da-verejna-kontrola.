@@ -15,14 +15,17 @@ import psycopg
 from pvk.normalizace import NCastka, NTok, NUdalost, NZaznam, Statistika
 from pvk.zdroje import vvz as vvz_zdroj
 
+NEJMENSI_DATUM = date(1990, 1, 1)  # starší datum ve zdroji = chyba dat (např. rok 0202), ne událost
+
 
 def _datum(hodnota) -> date | None:
     if not hodnota:
         return None
     try:
-        return date.fromisoformat(str(hodnota)[:10])
+        d = date.fromisoformat(str(hodnota)[:10])
     except ValueError:
         return None
+    return d if NEJMENSI_DATUM <= d <= date(2100, 1, 1) else None
 
 
 def _cislo(hodnota) -> Decimal | None:
@@ -58,7 +61,6 @@ def _castka(param: dict, pole: str, klic: str, hodnota, mena: str | None, datum:
 
 
 def _pridej_castku(z: NZaznam, stat: Statistika, tok: str, vysledek: NCastka | str, pole: str, hodnota) -> None:
-    stat.castek_ve_zdroji[z.zdroj] += 1
     if isinstance(vysledek, str):
         z.vyjimky.append((vysledek, pole, str(hodnota)[:100], "částku nelze typovat podle metodiky"))
     else:
@@ -182,6 +184,10 @@ def dotaceeu_2127(conn, param: dict, stat: Statistika, vcetne_vyvojovych: bool) 
             continue
         tok = f"dotaceeu_2127:{reg}"
         z = NZaznam(r["id"], "dotaceeu_2127", r["id_ve_zdroji"], "operace_eu", r["url"], start)
+        for pole in ("Datum podepsání právního aktu", "Datum zahájení zadávacího/výběrového řízení",
+                     "Datum podpisu smlouvy/dodatku"):
+            if o.get(pole) and _datum(o.get(pole)) is None:
+                z.vyjimky.append(("datum_neplatne", pole, str(o.get(pole))[:40], "datum mimo rozsah 1990–2100"))
         z.ica = [("IČ příjemce", o.get("IČ příjemce"))]
         z.toky.append(NTok(tok, "dotace", start, prijemce=o.get("IČ příjemce"), predmet=o.get("Název projektu"),
                            duvod_platce="zdroj uvádí program, ne IČO poskytovatele (řídicího orgánu)"))

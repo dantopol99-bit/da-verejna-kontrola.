@@ -35,6 +35,7 @@ from pvk.ico import ico_platne, normalizuj_ico
 from pvk.raw import kanonicky_json
 
 LOG = logging.getLogger("pvk.normalizace")
+SPOLECNY_TOK = (("vvz", "vvz_detail"),)
 METODIKA = KOREN / "metodika" / "normalizace-2026.09.json"
 
 
@@ -156,17 +157,17 @@ def zapis_zaznamy(
     """Zapíše normalizované záznamy jednoho zdroje do core (jedna transakce, každá entita nejvýš jednou)."""
     if not zaznamy:
         return
-    zdroj = zaznamy[0].zdroj
 
     # 1. IČO: kontrola, ověření neznámých IČO v kotvě (hromadně, bez ukládání údajů kotvy)
+    zdroj_zaznamu = {z.raw_id: z.zdroj for z in zaznamy}
     platna: dict[tuple[int, str], str] = {}
     for z in zaznamy:
         for pole, hodnota in z.ica:
             ico, duvod = over_ico(hodnota)
             if hodnota not in (None, ""):
-                stat.ico_ve_zdroji[zdroj].add(str(hodnota).strip())
+                stat.ico_ve_zdroji[z.zdroj].add(ico or str(hodnota).strip())
             if duvod:
-                stat.ico_neplatna[zdroj].add(str(hodnota).strip())
+                stat.ico_neplatna[z.zdroj].add(str(hodnota).strip())
                 z.vyjimky.append((duvod, pole, str(hodnota)[:100], "IČO neprošlo kontrolou (8 číslic, modulo 11)"))
             elif ico:
                 platna[(z.raw_id, pole)] = ico
@@ -177,7 +178,9 @@ def zapis_zaznamy(
             if nalezene.get(ico) is not None:
                 znama_ica[ico] = str(klic_entity("subjekt", ico))
     nenalezena = {i for i in platna.values() if i not in znama_ica}
-    stat.ico_nenalezena[zdroj] |= nenalezena
+    for (raw_id, _pole), ico in platna.items():
+        if ico in nenalezena:
+            stat.ico_nenalezena[zdroj_zaznamu[raw_id]].add(ico)
     for z in zaznamy:
         for pole, _h in z.ica:
             ico = platna.get((z.raw_id, pole))
@@ -189,12 +192,14 @@ def zapis_zaznamy(
 
     # 2. toky: sloučení podle klíče (tok zakládá první záznam, další se navazují)
     toky: dict[str, NTok] = {}
+    zdroj_toku: dict[str, str] = {}
     for z in zaznamy:
         for t in z.toky:
             t.platce = normalizuj_ico(t.platce) if t.platce else None
             t.prijemce = normalizuj_ico(t.prijemce) if t.prijemce else None
             if t.klic not in toky:
                 toky[t.klic] = t
+                zdroj_toku[t.klic] = z.zdroj
                 continue
             u = toky[t.klic]
             u.valid_from = min(u.valid_from, t.valid_from)
@@ -224,7 +229,7 @@ def zapis_zaznamy(
         data = {"druh": t.druh, "platce_subjekt_id": platce, "prijemce_subjekt_id": prijemce,
                 "subjekt_neurcen_duvod": "; ".join(duvody) or None, "predmet": (t.predmet or "")[:500] or None}
         polozky.append((t.klic, data, t.valid_from, None))
-        stat.toku[(zdroj, t.druh)] += 1
+        stat.toku[(zdroj_toku[t.klic], t.druh)] += 1
     zapis_entity(conn, "tok", polozky)
 
     # 3. zdrojové záznamy a vazby tok_zdroj (doložené: tok určuje identifikátor ve zdroji)
@@ -241,7 +246,7 @@ def zapis_zaznamy(
                 "metodika_verze_id": metodika_id,
                 "zduvodneni": "tok určuje identifikátor ve zdroji (" + t.klic.split(":", 1)[0] + ")",
             }, z.valid_from, None))
-        stat.zaznamu[zdroj] += 1
+        stat.zaznamu[z.zdroj] += 1
     zapis_entity(conn, "zdrojovy_zaznam", zz)
     zapis_entity(conn, "tok_zdroj", tz)
 
@@ -266,9 +271,9 @@ def zapis_zaznamy(
                 else:
                     data.update(prepocet="kurz_cnb", kurz_cnb=kurz[0], kurz_datum=kurz[1],
                                 hodnota_czk=(c.hodnota * kurz[0]).quantize(Decimal("0.01")))
-            stat.prepocet[(zdroj, data["prepocet"])] += 1
-            stat.castek[(zdroj, c.typ)] += 1
-            stat.castek_s_typem[zdroj] += 1
+            stat.prepocet[(z.zdroj, data["prepocet"])] += 1
+            stat.castek[(z.zdroj, c.typ)] += 1
+            stat.castek_s_typem[z.zdroj] += 1
             cp.append((c.klic, data, c.datum, None))
     zapis_entity(conn, "castka", cp)
 
@@ -282,7 +287,7 @@ def zapis_zaznamy(
             up.append((u.klic, {"tok_id": str(klic_entity("tok", tok_klic)),
                                 "zdrojovy_zaznam_id": str(klic_entity("zdrojovy_zaznam", f"{z.zdroj}:{z.id_ve_zdroji}")),
                                 "typ": u.typ, "datum": u.datum, "popis": u.popis}, u.datum, None))
-            stat.udalosti[(zdroj, u.typ)] += 1
+            stat.udalosti[(z.zdroj, u.typ)] += 1
     zapis_entity(conn, "udalost", up)
 
     # 6. výjimky (pouze INSERT, stejná výjimka téhož záznamu jen jednou)
@@ -322,9 +327,18 @@ def normalizuj(conn: psycopg.Connection, zdroje: Iterable[str], kotva, kurzy, st
     definice, metodika_id = nacti_metodiku(conn)
     beh_id = zahaj_beh(conn, metodika_id, {"zdroje": list(zdroje), "metodika": definice["kod"]})
     znama = znama_ica(conn)
+    # zdroje se společným klíčem toku (souhrn a detail týchž formulářů VVZ) se zapisují společně, aby každý
+    # tok vznikl v běhu jednou verzí (jinak by se verze toku při každém běhu střídaly)
+    skupiny: list[tuple[str, ...]] = []
     for zdroj in zdroje:
-        zaznamy = adaptery.ADAPTERY[zdroj](conn, definice["parametry"], stat, vcetne_vyvojovych)
-        LOG.info("normalizace %s: %d záznamů", zdroj, len(zaznamy))
+        skupina = tuple(x for x in next((s for s in SPOLECNY_TOK if zdroj in s), (zdroj,)) if x in zdroje)
+        if skupina not in skupiny:
+            skupiny.append(skupina)
+    for skupina in skupiny:
+        zaznamy = []
+        for zdroj in skupina:
+            zaznamy += adaptery.ADAPTERY[zdroj](conn, definice["parametry"], stat, vcetne_vyvojovych)
+        LOG.info("normalizace %s: %d záznamů", "+".join(skupina), len(zaznamy))
         zapis_zaznamy(conn, zaznamy, beh_id=beh_id, metodika_id=metodika_id, kotva=kotva, kurzy=kurzy,
                       stat=stat, znama_ica=znama)
         conn.commit()

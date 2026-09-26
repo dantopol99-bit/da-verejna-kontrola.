@@ -71,15 +71,26 @@ def report(conn, stat: Statistika, pocet_limitu: int) -> str:
     celkem = conn.execute("SELECT druh, count(DISTINCT tok_id) n FROM core.tok_aktualni GROUP BY 1 ORDER BY 1").fetchall()
     r += ["", "Celkem: " + ", ".join(f"{x['druh']} {x['n']}" for x in celkem) + ".", ""]
     r += ["## Částky: podíl s určeným typem (cíl 100 %)", "",
-          "| zdroj | částek ve zdroji (tento běh) | s typem, DPH, měnou a periodou | podíl |", "|---|---:|---:|---:|"]
-    for zdroj in sorted(stat.castek_ve_zdroji):
-        n, t = stat.castek_ve_zdroji[zdroj], stat.castek_s_typem[zdroj]
-        r.append(f"| {zdroj} | {n} | {t} | {_pct(t, n)} |")
+          "Rámec: částky nalezené ve zdroji = částky zapsané v core (vždy s typem) + částky, které nešlo typovat "
+          "(výjimky `castka_bez_meny`, `castka_bez_pravidla_metodiky`).", "",
+          "| zdroj | částek ve zdroji | s typem, DPH, měnou a periodou | podíl |", "|---|---:|---:|---:|"]
+    for x in conn.execute(
+        """WITH s AS (SELECT z.zdroj, count(*) n FROM core.castka c
+                        JOIN core.zdrojovy_zaznam_aktualni z ON z.zdrojovy_zaznam_id = c.zdrojovy_zaznam_id
+                       WHERE c.recorded_to = 'infinity' GROUP BY 1),
+                bez AS (SELECT zdroj, count(*) n FROM core.normalizace_vyjimka
+                         WHERE druh IN ('castka_bez_meny', 'castka_bez_pravidla_metodiky') GROUP BY 1)
+           SELECT coalesce(s.zdroj, bez.zdroj) zdroj, coalesce(s.n, 0) s_typem, coalesce(bez.n, 0) bez_typu
+             FROM s FULL JOIN bez ON bez.zdroj = s.zdroj ORDER BY 1"""):
+        n = x["s_typem"] + x["bez_typu"]
+        r.append(f"| {x['zdroj']} | {n} | {x['s_typem']} | {_pct(x['s_typem'], n)} |")
     r += ["", "Částky v core podle typu (aktuální verze):", "", "| typ | měna | přepočet | počet |", "|---|---|---|---:|"]
-    for x in conn.execute("SELECT typ, mena, prepocet, count(*) n FROM core.castka_aktualni GROUP BY 1, 2, 3 ORDER BY 1, 2, 3"):
+    for x in conn.execute("SELECT typ, mena, coalesce(prepocet, 'neni_treba') prepocet, count(*) n FROM core.castka "
+                          "WHERE recorded_to = 'infinity' GROUP BY 1, 2, 3 ORDER BY 1, 2, 3"):
         r.append(f"| {x['typ']} | {x['mena']} | {x['prepocet']} | {x['n']} |")
     bez_typu = conn.execute(
-        "SELECT count(*) n FROM core.castka_aktualni WHERE typ IS NULL OR dph_rezim IS NULL OR perioda IS NULL OR mena IS NULL"
+        "SELECT count(*) n FROM core.castka WHERE recorded_to = 'infinity' "
+        "AND (typ IS NULL OR dph_rezim IS NULL OR perioda IS NULL OR mena IS NULL)"
     ).fetchone()["n"]
     r += ["", f"Částek v core bez typu, režimu DPH, měny nebo periody: {bez_typu} (databáze je nepřijme).", ""]
     r += ["## IČO: podíl nespárovaných podle zdroje", "",
@@ -88,7 +99,10 @@ def report(conn, stat: Statistika, pocet_limitu: int) -> str:
           "| zdroj | IČO ve zdroji | neplatná | nenalezená v kotvě | nespárovaná celkem | podíl |", "|---|---:|---:|---:|---:|---:|"]
     for zdroj in sorted(stat.ico_ve_zdroji):
         n = len(stat.ico_ve_zdroji[zdroj])
-        a, b = len(stat.ico_neplatna[zdroj]), len(stat.ico_nenalezena[zdroj])
+        nenalezena = {x["hodnota"] for x in conn.execute(
+            "SELECT DISTINCT hodnota FROM core.normalizace_vyjimka WHERE zdroj = %s AND druh = 'ico_nenalezeno_v_kotve'",
+            (zdroj,))}
+        a, b = len(stat.ico_neplatna[zdroj]), len(nenalezena)
         r.append(f"| {zdroj} | {n} | {a} | {b} | {a + b} | {_pct(a + b, n)} |")
     r += ["", "## Výjimky", "", "| zdroj | druh výjimky | počet |", "|---|---|---:|"]
     vyjimky = conn.execute("SELECT zdroj, druh, count(*) n FROM core.normalizace_vyjimka GROUP BY 1, 2 ORDER BY 1, 2").fetchall()
@@ -111,6 +125,24 @@ def report(conn, stat: Statistika, pocet_limitu: int) -> str:
     return "\n".join(r)
 
 
+def ramec_ico(conn, zdroje: list[str]) -> Statistika:
+    """Rámec IČO podle zdroje z adaptérů (bez zápisu do core): různá IČO ve zdroji a neplatná."""
+    from pvk.normalizace import METODIKA, over_ico
+
+    stat = Statistika()
+    parametry = json.loads(METODIKA.read_text(encoding="utf-8"))["parametry"]
+    for zdroj in zdroje:
+        for z in ADAPTERY[zdroj](conn, parametry, stat, True):
+            for _pole, hodnota in z.ica:
+                if hodnota in (None, ""):
+                    continue
+                ico, duvod = over_ico(hodnota)
+                stat.ico_ve_zdroji[zdroj].add(ico or str(hodnota).strip())
+                if duvod:
+                    stat.ico_neplatna[zdroj].add(str(hodnota).strip())
+    return stat
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     p = argparse.ArgumentParser(prog="pvk.normalizace")
@@ -118,17 +150,29 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bez-kotvy", action="store_true", help="neověřovat neznámá IČO v kotvě (vše = nenalezeno)")
     p.add_argument("--bez-kurzu", action="store_true", help="kurzy ČNB nestahovat (cizí měna s příznakem)")
     p.add_argument("--report", default=str(REPORT))
+    p.add_argument("--jen-report", action="store_true", help="jen měření nad core (bez normalizace)")
     a = p.parse_args(argv)
     nast = nastaveni()
+    zdroje = [z for z in a.zdroje.replace(",", " ").split() if z]
+    if a.jen_report:
+        with pripoj(nast.database_url) as conn:
+            pocet = conn.execute("SELECT count(*) n FROM core.limit WHERE recorded_to = 'infinity'").fetchone()["n"]
+            text = report(conn, ramec_ico(conn, zdroje), pocet)
+        with open(a.report, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+        print(f"měření v {a.report}")
+        return 0
     with pripoj(nast.database_url) as conn:
         zaregistruj_zdroje(conn)
         kurzy = None if a.bez_kurzu else KurzyCNB(Stahovac(conn, nast))
         kotva = _BezKotvy() if a.bez_kotvy else vychozi_kotva()
-        stat = normalizuj(conn, [z for z in a.zdroje.replace(",", " ").split() if z], kotva, kurzy)
+        stat = normalizuj(conn, zdroje, kotva, kurzy)
         if a.bez_kurzu:
             stat.poznamky.append("kurzy ČNB se nestahovaly: cizoměnové částky nepřepočteny (kurz_nedostupny)")
         pocet = zapis_limity(conn)
-        text = report(conn, stat, pocet)
+        ramec = ramec_ico(conn, zdroje)
+        ramec.poznamky = stat.poznamky
+        text = report(conn, ramec, pocet)
     with open(a.report, "w", encoding="utf-8") as f:
         f.write(text + "\n")
     print(f"normalizace hotova, měření v {a.report}")
