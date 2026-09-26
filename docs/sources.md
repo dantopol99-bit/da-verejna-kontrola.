@@ -221,3 +221,15 @@ operací 21+ (soubor 2026_09, 48 692 řádků), IS ReD – 23 dotací; stahován
   nic se neukládá (D-008).
 * **Zákon č. 134/2016 Sb.** pro tabulku limitů: `https://www.zakonyprolidi.cz/cs/2016-134` (aktuální znění
   03.04.2025–31.12.2026); historická znění vyžadují přihlášení – neobchází se (D-042).
+
+## 10. Blok 3/2 – dostupnost (26. 9. 2026, 12:00–12:12 UTC)
+
+* **Registr smluv – oficiální data:** jeden test dostupnosti – nedostupné (běh `preskoceno`).
+* **Zrcadlo Hlídač státu:** tentokrát dostupné; test (limit 90 s) stihl 14 smluv jako vývojový vzorek
+  (`vyvojovy_vzorek`, D-040), běh ukončený limitem je v `raw.beh` jako `nedokonceno`.
+* **IS ReD:** příjemci a rozhodnutí dostaženi (běh `uspech`, 8 minut), soubor dotací se znovu nestahoval (katalog
+  CKAN beze změny).
+* **e-Sbírka** (`esbirka`): web `e-sbirka.gov.cz` je JavaScriptová aplikace; data znění poskytuje její veřejné
+  rozhraní `https://e-sbirka.gov.cz/sbr-cache/dokumenty-sbirky/%2Fsb%2F2016%2F134%2F<datum>` (metadata znění)
+  a `…/fragmenty?cisloStranky=N` (text po fragmentech s ELI). `www.e-sbirka.gov.cz` z prostředí nedostupné,
+  `www.e-sbirka.cz` přesměruje na `e-sbirka.gov.cz`. Stahuje se přes `Stahovac` (log v `raw.stazeni`).

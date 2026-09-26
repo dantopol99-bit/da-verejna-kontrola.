@@ -70,6 +70,13 @@ ZDROJE: dict[str, dict[str, str]] = {
         "licence": "veřejně dostupné údaje ČNB",
         "poznamka": "Přepočet cizoměnových částek k datu uzavření (normalizace, blok 3).",
     },
+    "esbirka": {
+        "nazev": "e-Sbírka – Sbírka zákonů a mezinárodních smluv (znění předpisů, strojové rozhraní webu)",
+        "spravce": "Ministerstvo vnitra",
+        "url": "https://e-sbirka.gov.cz/",
+        "licence": "veřejně dostupné znění právních předpisů",
+        "poznamka": "Historická znění zákona č. 134/2016 Sb. pro tabulku limitů (D-042, D-047).",
+    },
     "szif": {
         "nazev": "SZIF – seznam příjemců dotací z fondů EU",
         "spravce": "Státní zemědělský intervenční fond",

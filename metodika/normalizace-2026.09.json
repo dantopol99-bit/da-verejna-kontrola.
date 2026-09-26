@@ -5,16 +5,53 @@
   "dokument": "metodika/normalizace-2026.09.md",
   "parametry": {
     "castky": {
-      "vvz.BT-27": {"typ": "predpokladana", "dph_rezim": "bez_dph", "perioda": "celkem"},
-      "vvz.BT-720": {"typ": "vysoutezena", "dph_rezim": "bez_dph", "perioda": "celkem"},
-      "vvz.zmena": {"typ": "zmena_dodatkem", "dph_rezim": "bez_dph", "perioda": "celkem"},
-      "eu.pravni_akt": {"typ": "dotace_priznana", "dph_rezim": "mimo_dph", "perioda": "celkem"},
-      "eu.vyuctovano": {"typ": "dotace_cerpana", "dph_rezim": "mimo_dph", "perioda": "celkem"},
-      "eu.vz_predpokladana": {"typ": "predpokladana", "dph_rezim": "bez_dph", "perioda": "celkem"},
-      "eu.vz_smluvni": {"typ": "smluvni", "dph_rezim": "bez_dph", "perioda": "celkem"}
+      "vvz.BT-27": {
+        "typ": "predpokladana",
+        "dph_rezim": "bez_dph",
+        "perioda": "celkem"
+      },
+      "vvz.BT-720": {
+        "typ": "vysoutezena",
+        "dph_rezim": "bez_dph",
+        "perioda": "celkem"
+      },
+      "vvz.zmena": {
+        "typ": "zmena_dodatkem",
+        "dph_rezim": "bez_dph",
+        "perioda": "celkem"
+      },
+      "eu.pravni_akt": {
+        "typ": "dotace_priznana",
+        "dph_rezim": "mimo_dph",
+        "perioda": "celkem"
+      },
+      "eu.vyuctovano": {
+        "typ": "dotace_cerpana",
+        "dph_rezim": "mimo_dph",
+        "perioda": "celkem"
+      },
+      "eu.vz_predpokladana": {
+        "typ": "predpokladana",
+        "dph_rezim": "bez_dph",
+        "perioda": "celkem"
+      },
+      "eu.vz_smluvni": {
+        "typ": "smluvni",
+        "dph_rezim": "bez_dph",
+        "perioda": "celkem"
+      },
+      "red.castkaRozhodnuta": {
+        "typ": "dotace_priznana",
+        "dph_rezim": "mimo_dph",
+        "perioda": "celkem"
+      }
     },
     "kurz_max_stari_dnu": 10,
     "kotva": "ares",
-    "vazba_zdrojoveho_zaznamu": {"stav": "dolozena", "metoda": "identifikator_ve_zdroji", "skore": 1}
+    "vazba_zdrojoveho_zaznamu": {
+      "stav": "dolozena",
+      "metoda": "identifikator_ve_zdroji",
+      "skore": 1
+    }
   }
 }

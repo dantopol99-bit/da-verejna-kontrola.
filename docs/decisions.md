@@ -455,3 +455,53 @@ zdroje (e-Sbírka). Hranice VZMR platí včetně („rovna nebo nižší“).
 zdroje) bez platného data v poli `stav_k_datu` (`DOTACE_BEZ_STAVU_K_DATU`); testy v
 `tests/test_publikacni_podminky.py`. V databázi: `ind.*.stav_dat_k` a pohledy `ind.*_k_publikaci` dotační výsledek
 bez něj nevydají (migrace 0008), `core.castka.stav_dat_k` je u dotačních částek povinný (migrace 0009).
+
+## D-044 Tok = zakázka, nebo část zakázky; oprava bez mazání
+
+**Kontext.** Kontrola počtu toků (blok 3/2): 18 986 toků `verejna_zakazka` nevzniklo z 5 364 formulářů VVZ – je to
+součet dvou zdrojů: VVZ 3 932 toků (= 3 932 různých evidenčních čísel zakázek, formuláře téže zakázky už byly
+navázané na jeden tok přes `tok_zdroj`) a seznam operací 15 054 (veřejné zakázky v projektech, řádek = smlouva).
+Tok ale nerozlišoval části zakázky: zakázka s více částmi měla jeden tok s „více příjemci“.
+**Rozhodnutí.**
+* Tok VVZ = zakázka (evidenční číslo); má-li zakázka podle detailu formuláře více částí (BT-137-Lot), je tokem
+  každá část (`vvz:<zakázka>:<LOT>`) s dodavatelem z vítězné nabídky části, BT-27-Lot, BT-720 a smlouvou části.
+  Všechny formuláře zakázky se navazují na toky jejích částí (doloženě, evidenční číslo; identifikátor NIPEZ
+  spojení potvrzuje – 505 identifikátorů, žádný nespojuje různá evidenční čísla). Události celé zakázky mají prázdný
+  `tok_id` a k částem vedou přes zdrojový záznam.
+* **Oprava bez mazání:** entita, kterou dnešní normalizace z týchž zdrojových záznamů už nevytváří (tok celé
+  zakázky nahrazený toky částí, jeho vazby, částky a události), se logicky ukončí funkcí `core.ukonci_entitu()`
+  (migrace 0011): aktuální verze dostane `recorded_to = now()` a žádného nástupce, řádky zůstávají, důvod a náhrada
+  jsou v `core.ukonceni_entity` (pouze INSERT). Dotaz „jak jsme to věděli v čase T“ vrací původní stav.
+**Důsledky.** VVZ má 4 105 toků: 3 862 zakázek bez dělení + 243 částí 70 zakázek (ukončeno 70 toků celých zakázek,
+225 vazeb, 201 částek, 2 události). Seznam operací nemá identifikátor zakázky; 15 054 řádků odpovídá 13 140 různým
+dvojicím (projekt, název zakázky, dodavatel) – spojení řádků by bylo heuristické, proto zůstává řádek = smlouva
+(část) a jde o otevřený bod.
+
+## D-045 Párování smlouva – zakázka
+
+**Rozhodnutí.** `pvk.parovani`, parametry `metodika/parovani-2026.09.json` (stanovené před měřením; RS v raw zatím
+jen jako vývojový vzorek). Doložená shoda (skóre 1): `odkaz_bt151` (BT-151 odkazuje na záznam RS) nebo
+`ev_cislo_v_rs` (evidenční číslo zakázky / identifikátor NIPEZ v metadatech či textu smlouvy a shoda IČO zadavatele).
+Pravděpodobná (jen při shodě IČO zadavatele i dodavatele se stranami smlouvy): 0,4 + 0,25 × datum (lineárně v okně
+±30 dní) + 0,25 × částka (tolerance 10 %, přepočet s DPH 21/12 %) + 0,1 × předmět (Jaccard slov bez diakritiky,
+plná shoda od 0,5), práh 0,70, maximum 0,999. Oproti pilotu (D-018) přibyl předmět; váhy data a částky se snížily
+z 0,3 na 0,25, aby součet zůstal 1. Shody se zapíší do `core.tok_zdroj` (stav, skóre, metoda), až bude RS v core;
+propojení je případ se stavem shody, nikdy tok (D-026).
+
+## D-046 Souhrny: jeden zdroj, jeden typ částky, podíl heuristiky a rozpětí
+
+**Rozhodnutí.** `pvk.souhrny.souhrn_subjektu()` sčítá jen přes `core.soucet()` částky jednoho typu, měny, režimu DPH
+a periody u toků subjektu (plátce/příjemce) v jednom zdroji (VVZ = souhrn + detail). Vrací pokrytí (toky subjektu,
+s částkou daného typu, s IČO obou stran) a podíl objemu částek ze záznamů navázaných jen pravděpodobnou vazbou.
+Nad zveřejněným prahem (`metodika/souhrny-2026.09.json`, `prah_podilu_heuristiky_pro_rozpeti` = 0,05) vrací
+rozpětí: dolní mez se shodou (pravděpodobné duplicity odečtené), horní bez ní. Publikační brána odmítne souhrn bez
+podílu heuristiky (`SOUHRN_BEZ_PODILU_HEURISTIKY`) a nad prahem souhrn bez rozpětí (`SOUHRN_BEZ_ROZPETI`).
+
+## D-047 Historie limitů z e-Sbírky; oprava čísel paragrafů
+
+**Rozhodnutí.** Znění zákona č. 134/2016 Sb. od 1. 10. 2016 do 31. 12. 2026 ověřena v e-Sbírce (strojové rozhraní
+webu `e-sbirka.gov.cz/sbr-cache/dokumenty-sbirky/…`, stažení přes `Stahovac`, zdroj `esbirka`). VZMR: 2 000 000 /
+6 000 000 Kč v zněních 1. 10. 2016 – 2. 4. 2025, 3 000 000 / 9 000 000 Kč od 3. 4. 2025. Lhůty (§ 54, § 57, § 59,
+§ 62) jsou ve všech zněních beze změny. Oprava D-042: lhůty užšího řízení jsou v § 59 (ne § 58), JŘSU v § 62.
+Limit je v `core.limit` jedna entita na kód s verzemi platnosti (valid time); entity dřívějšího klíčování
+(kód + datum) se ukončily podle D-044.

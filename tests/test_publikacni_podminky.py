@@ -413,3 +413,23 @@ def test_db_dotacni_vysledek_bez_stavu_dat_se_nepublikuje(db, metodika_id):
         )
     assert db.execute("SELECT count(*) AS n FROM ind.souhrn_k_publikaci WHERE metodika_verze_id = %s",
                       (metodika_id,)).fetchone()["n"] == 1
+
+
+# --- D-046: souhrn s podílem heuristiky, nad prahem s rozpětím --------------------------------------
+
+SOUHRN_SUBJEKTU = {"druh": "souhrn", **CASTKA, "metodika_verze": "souhrny-2026.09", "podil_heuristicke_deduplikace": 0.2,
+                   "rozpeti": {"dolni_se_shodou": "80", "horni_bez_shody": "100"}}
+
+
+@pytest.mark.parametrize(
+    ("zmena", "kod"),
+    [
+        ({"podil_heuristicke_deduplikace": None}, "SOUHRN_BEZ_PODILU_HEURISTIKY"),
+        ({"rozpeti": None}, "SOUHRN_BEZ_ROZPETI"),
+        ({"rozpeti": {"dolni_se_shodou": "80"}}, "SOUHRN_BEZ_ROZPETI"),
+    ],
+)
+def test_souhrn_subjektu_bez_podilu_nebo_rozpeti_neprojde(tmp_path, zmena, kod):
+    metodiky = publikace.nacti_metodiky()
+    assert publikace.over_vystup(SOUHRN_SUBJEKTU, metodiky, "test") == []
+    assert kod in kody(publikace.over_vystup({**SOUHRN_SUBJEKTU, **zmena}, metodiky, "test"))
