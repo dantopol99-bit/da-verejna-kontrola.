@@ -301,6 +301,7 @@ def udaje_detailu(detail: dict, souhrn: dict | None = None) -> dict:
         "ev_cislo_zakazky": data.get("evCisloZakazkyVvz") or None,
         "identifikator_nipez": (metadata.get("identifikatoryNipez") or {}).get("identifikatorNipez"),
         "eforms": root is not None,
+        "typ_oznameni": None,  # BT-03: competition (zahájení), result (výsledek), change, planning…
         "vysledek": False,
         "vybran_dodavatel": False,
         "ico_zadavatelu": [],
@@ -329,6 +330,7 @@ def udaje_detailu(detail: dict, souhrn: dict | None = None) -> dict:
     cena = _castky(t.get("BT-720-Tender") for t in vitezne) or _castky([vysledek.get("BT-161-NoticeResult")])
     odhad = _hodnoty(root, "BT-27-Procedure") or _hodnoty(root, "BT-27-Lot")
     u.update(
+        typ_oznameni=root.get("BT-03-notice"),
         vysledek=root.get("BT-03-notice") == "result",
         vybran_dodavatel=bool(oznameni and oznameni.vybran_dodavatel),
         ico_zadavatelu=_unikatni(z.ico for z in (oznameni.zadavatele if oznameni else [])),

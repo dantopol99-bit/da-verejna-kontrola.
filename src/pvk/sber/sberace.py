@@ -301,8 +301,8 @@ UPLNOST_POLI = {  # název ukazatele -> test na údajích detailu (vvz.udaje_det
 
 def uplnost_vvz_detail(conn, od: date, do: date) -> dict:
     """Stav navazujícího sběru a úplnost stažených detailů za období: počty formulářů (v období / hotovo /
-    zbývá) a pro tři rámce (všechny stažené detaily, oznámení o výsledku BT-03 = result, výsledky
-    s vybraným dodavatelem) počet detailů s vyplněným údajem."""
+    zbývá) a pro rámce (všechny stažené detaily, oznámení o zahájení BT-03 = competition, oznámení
+    o výsledku BT-03 = result, výsledky s vybraným dodavatelem) počet detailů s vyplněným údajem."""
     formulare = formulare_vvz(conn, od, do)
     radky = conn.execute(
         """
@@ -318,6 +318,7 @@ def uplnost_vvz_detail(conn, od: date, do: date) -> dict:
     udaje = [vvz.udaje_detailu(r["detail"], r["souhrn"]) for r in radky]
     ramce = {
         "všechny stažené detaily": udaje,
+        "oznámení o zahájení (BT-03 = competition)": [u for u in udaje if u["typ_oznameni"] == "competition"],
         "oznámení o výsledku (BT-03 = result)": [u for u in udaje if u["vysledek"]],
         "výsledky s vybraným dodavatelem": [u for u in udaje if u["vysledek"] and u["vybran_dodavatel"]],
     }

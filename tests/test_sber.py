@@ -205,6 +205,7 @@ def test_vvz_detail_navazuje_a_nic_nestahuje_dvakrat(conn, tmp_path, monkeypatch
     u = sberace.uplnost_vvz_detail(conn, OD, DO)
     assert (u["formularu_v_obdobi"], u["hotovo"], u["zbyva"]) == (3, 3, 0)
     assert u["ramce"]["výsledky s vybraným dodavatelem"]["IČO dodavatele"] == 3
+    assert u["ramce"]["oznámení o zahájení (BT-03 = competition)"]["zaklad"] == 0
 
 
 def test_vvz_detail_casovy_limit_nechava_zbytek_na_pristi_beh(conn, tmp_path):
@@ -255,6 +256,7 @@ def test_udaje_detailu_formulare_vysledku():
     assert (u["pocet_nabidek"], u["druh_rizeni"], u["cpv"]) == ([3], "open", ["45221100"])
     assert (u["ev_cislo_zakazky"], u["identifikator_nipez"]) == ("Z2025-010690", "RVZ2500081945")
     assert u["vysledek"] and u["vybran_dodavatel"] and u["lhuty"] == {"podani_nabidek": [], "zadosti_o_ucast": []}
+    assert u["typ_oznameni"] == "result"
     prazdny = vvz.udaje_detailu({"formular": "F1", "deti": []})
     assert not prazdny["eforms"] and prazdny["ico_dodavatelu"] == []
 

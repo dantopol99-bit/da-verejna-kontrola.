@@ -163,4 +163,4 @@ Opakovaný běh (stejné období, jen dostupné zdroje) – kontrola, že nevzni
   s chybou v evidenci. Z české sítě: `make sber ZDROJE="registr_smluv nen isvz cedr"`.
 
 Opakovaný běh VVZ a seznamu operací za stejné období nevložil žádný nový záznam (běhy 9 a 10).
-Úplný obsah formulářů eForms (částky, dodavatelé) sběr zatím nestahuje (D-034).
+Úplný obsah formulářů eForms (částky, dodavatelé) v ověřovacím běhu stažen nebyl (D-034); stahuje ho navazující zdroj `vvz_detail` (D-037) – viz následující oddíl.
