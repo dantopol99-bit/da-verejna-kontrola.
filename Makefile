@@ -23,7 +23,8 @@ help:
 	@echo "make lint    – ruff"
 	@echo "make gate    – publikační podmínky nad výstupy (docs/pilot_report.md, vystupy/)"
 	@echo "make pilot   – pilot měření kvality dat (P1–P4) -> docs/pilot_report.md"
-	@echo "make sber    – všechny stahovače do raw za poslední měsíc (ZDROJE=\"vvz red\" jen vybrané)"
+	@echo "make sber    – všechny stahovače do raw za poslední měsíc (ZDROJE=\"vvz red\" jen vybrané,"
+	@echo "               LIMIT_MINUT=N omezí navazující detail VVZ)"
 	@echo "make sber-stav – přehled posledních běhů sběru"
 
 $(STAMP): pyproject.toml
@@ -66,9 +67,10 @@ pilot-report: migrate
 	$(PY) -m pvk.publikace
 
 # Sběr do raw za poslední měsíc (PVK_SBER_OD/PVK_SBER_DO mění období). Nedostupný zdroj se přeskočí
-# se záznamem v evidenci běhu (raw.beh_prehled).
+# se záznamem v evidenci běhu (raw.beh_prehled). Detail VVZ (vvz_detail) navazuje na předchozí běhy;
+# LIMIT_MINUT=N omezí jeho dobu běhu, nestihnuté formuláře stáhne další běh.
 sber: migrate
-	$(PY) -m pvk.sber sber $(if $(ZDROJE),--zdroje "$(ZDROJE)")
+	$(PY) -m pvk.sber sber $(if $(ZDROJE),--zdroje "$(ZDROJE)") $(if $(LIMIT_MINUT),--limit-minut $(LIMIT_MINUT))
 
 sber-stav: migrate
 	$(PY) -m pvk.sber stav

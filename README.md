@@ -18,6 +18,8 @@ make test                # vytvoří .venv, spustí PostgreSQL, migrace a testy
 make pilot               # celý pilot jedním příkazem
 make sber                # sběr všech zdrojů do raw za poslední měsíc (nedostupný zdroj se přeskočí)
 make sber-stav           # přehled posledních běhů sběru
+make sber ZDROJE=vvz_detail LIMIT_MINUT=20   # detail formulářů VVZ po částech (navazuje)
+.venv/bin/python -m pvk.sber uplnost         # kolik detailů VVZ je staženo, kolik zbývá, úplnost údajů
 ```
 
 Registr smluv, NEN, ISVZ a CEDR odmítají spojení z cloudových adres; z české sítě poběží stejným

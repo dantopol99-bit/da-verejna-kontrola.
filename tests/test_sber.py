@@ -11,6 +11,7 @@ import io
 import json
 import zipfile
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 
 import openpyxl
@@ -126,7 +127,8 @@ def _vvz_data():
         "id": f"uuid-{i}", "variableId": f"F2026-00000{i}", "dataHash": f"h{i}",
         "owner": {"name": "Jana Nováková", "email": "jana@example.invalid"},
         "createdBy": {"name": "Jana Nováková"}, "updatedBy": {"name": "most"},
-        "data": {"zadavatele": [{"ico": "00064581", "nazev": "Obec"}], "zdrojPodani": {"typ": "WEB", "uzivatelVvzLogin": "jnovak"},
+        "data": {"datumUverejneniVvz": f"2026-09-0{i}T10:00:00+02:00", "evCisloZakazkyVvz": f"Z2026-00000{i}",
+                 "zadavatele": [{"ico": "00064581", "nazev": "Obec"}], "zdrojPodani": {"typ": "WEB", "uzivatelVvzLogin": "jnovak"},
                  "dodavatele": [{"ico": "45023522", "nazev": "Stavby s.r.o."}, {"ico": None, "nazev": "Jan Novák"}]},
     }
     api = f"{vvz.API}/api/submissions/search"
@@ -158,6 +160,105 @@ def test_vvz_pocet_ze_zdroje_puvod_a_opakovany_beh_bez_duplicit(conn, tmp_path):
     assert set(z["redigovano"]) == {"owner", "createdBy", "updatedBy", "data.zdrojPodani.uzivatelVvzLogin",
                                     "data.dodavatele[1].nazev"}  # dodavatel bez IČO bez názvu (D-035)
     assert z["obsah"]["data"]["dodavatele"] == [{"ico": "45023522", "nazev": "Stavby s.r.o."}, {"ico": None}]
+
+
+FORMULAR = json.loads((Path(__file__).parent / "fixtures" / "vvz_F2025-035449.json").read_text())
+DETI_URL = f"{vvz.API}/api/submissions/children/search"
+
+
+def _deti(i: int) -> bytes:
+    dite = json.loads(json.dumps(FORMULAR["deti"][0]))
+    dite["owner"], dite["createdBy"] = {"name": "Jana Nováková"}, {"name": "Jana Nováková"}
+    firma = dite["data"]["ND-Root"]["ND-RootExtension"]["ND-Organizations"]["ND-Organization"][0]["ND-Company"]
+    firma["ND-CompanyContact"] = {"BT-502-Organization-Company": "Jana Nováková",
+                                  "BT-506-Organization-Company": f"jana{i}@example.invalid"}
+    return json.dumps([dite]).encode()
+
+
+def test_vvz_detail_navazuje_a_nic_nestahuje_dvakrat(conn, tmp_path, monkeypatch):
+    monkeypatch.setattr(sberace, "VVZ_DETAIL_CEKANI", (0,))
+    data, _ = _vvz_data()
+    spust(conn, FalesnyStahovac(conn, tmp_path, data), sberace.SBERACE["vvz"], OD, DO)
+    # formulář 2 je nedostupný (spojení odmítnuto i po opakování) -> chyba, ostatní se uloží
+    detaily = {_url(DETI_URL, submission=f"uuid-{i}", limit=5): _deti(i) for i in (1, 3)}
+    s1 = FalesnyStahovac(conn, tmp_path, {**data, **detaily})
+    beh1, stav1 = spust(conn, s1, sberace.SBERACE["vvz_detail"], OD, DO)
+    assert stav1 == "chyba" and [u for u in s1.dotazy if "children" in u].count(_url(DETI_URL, submission="uuid-2",
+                                                                                      limit=5)) == 2
+    assert [z["id_ve_zdroji"] for z in _zaznamy(conn, "vvz_detail")] == ["F2026-000001", "F2026-000003"]
+    assert json.loads(_beh(conn, beh1)["poznamka"])["zbyva"] == 1
+    # další běh stáhne jen chybějící formulář 2 a nic nezdvojí
+    detaily[_url(DETI_URL, submission="uuid-2", limit=5)] = _deti(2)
+    s2 = FalesnyStahovac(conn, tmp_path, {**data, **detaily})
+    beh2, stav2 = spust(conn, s2, sberace.SBERACE["vvz_detail"], OD, DO)
+    assert stav2 == "uspech" and [u for u in s2.dotazy if "children" in u] == [_url(DETI_URL, submission="uuid-2",
+                                                                                     limit=5)]
+    b2 = _beh(conn, beh2)
+    assert (b2["pocet_novych"], b2["pocet_ve_zdroji"], json.loads(b2["poznamka"])["zbyva"]) == (1, 3, 0)
+    z = _zaznamy(conn, "vvz_detail")
+    assert [x["id_ve_zdroji"] for x in z] == ["F2026-000001", "F2026-000002", "F2026-000003"]
+    # původ a osobní údaje: hash z původní odpovědi, kontakty a osoba zadávající formulář vynechány
+    puvodni = {"formular": "F2026-000001", "submission": "uuid-1", "deti": json.loads(_deti(1))}
+    assert z[0]["hash"] == raw.hash_zaznamu(puvodni) and "children" in z[0]["url"] and z[0]["beh_id"] == beh1
+    assert "jana1@example.invalid" not in json.dumps(z[0]["obsah"]) and "Nováková" not in json.dumps(z[0]["obsah"])
+    assert "deti[0].owner" in z[0]["redigovano"]
+    u = sberace.uplnost_vvz_detail(conn, OD, DO)
+    assert (u["formularu_v_obdobi"], u["hotovo"], u["zbyva"]) == (3, 3, 0)
+    assert u["ramce"]["výsledky s vybraným dodavatelem"]["IČO dodavatele"] == 3
+    assert u["ramce"]["oznámení o zahájení (BT-03 = competition)"]["zaklad"] == 0
+
+
+def test_vvz_detail_casovy_limit_nechava_zbytek_na_pristi_beh(conn, tmp_path):
+    od, do = date(2026, 7, 1), date(2026, 8, 1)  # vlastní období: databáze testů je sdílená
+    for i in (1, 2):
+        souhrn = {"id": f"uuid-7{i}", "variableId": f"F2026-00007{i}", "data": {"datumUverejneniVvz": f"2026-07-0{i}"}}
+        raw.zapis_zaznam(conn, zdroj="vvz", id_ve_zdroji=souhrn["variableId"], url="https://api.vvz.nipez.cz/x",
+                         cas_stazeni=datetime.now(UTC), obsah=souhrn, format="json")
+    s = FalesnyStahovac(conn, tmp_path, {sberace.SBERACE["vvz_detail"].url_dostupnosti: b"[]"})
+    beh, stav = spust(conn, s, sberace.SBERACE["vvz_detail"], od, do, limit_minut=1e-9)
+    poznamka = json.loads(_beh(conn, beh)["poznamka"])
+    assert stav == "uspech" and poznamka["ukonceno"] == "časový limit běhu" and poznamka["zbyva"] == 2
+    assert not [u for u in s.dotazy if "children" in u]
+    assert sberace.uplnost_vvz_detail(conn, od, do)["zbyva"] == 2
+
+
+def test_vvz_detail_bez_souhrnu_je_chyba(conn, tmp_path):
+    s = FalesnyStahovac(conn, tmp_path, {sberace.SBERACE["vvz_detail"].url_dostupnosti: b"[]"})
+    beh, stav = spust(conn, s, sberace.SBERACE["vvz_detail"], date(2020, 1, 1), date(2020, 2, 1))
+    assert stav == "chyba" and "nejdřív sběr vvz" in _beh(conn, beh)["chyby"][0]
+
+
+def test_rediguj_eforms_kontakty_ubo_a_strana_bez_ico():
+    obsah = {"deti": [{"owner": {"name": "X"}, "data": {"ND-Root": {"ND-RootExtension": {"ND-Organizations": {
+        "ND-Organization": [
+            {"ND-Company": {"BT-500-Organization-Company": "Firma a.s.", "ND-CompanyLegalEntity": [
+                {"BT-501-Organization-Company": "27502988"}], "ND-CompanyContact": {
+                "BT-503-Organization-Company": "+420 1", "BT-739-Organization-Company": "+420 2"}}},
+            {"ND-Company": {"BT-500-Organization-Company": "Jan Novák", "ND-CompanyAddress": {
+                "BT-510(a)-Organization-Company": "Ulice 1"}, "BT-165-Organization-Company": "sme"}},
+        ],
+        "ND-UBO": [{"BT-500-UBO": "Jan Novák", "OPT-202-UBO": "UBO-0001"}]}}}}}]}
+    ulozeny, vynechano = sberace.rediguj_eforms(obsah)
+    orgs = ulozeny["deti"][0]["data"]["ND-Root"]["ND-RootExtension"]["ND-Organizations"]
+    assert orgs["ND-Organization"][0]["ND-Company"]["BT-500-Organization-Company"] == "Firma a.s."
+    assert orgs["ND-Organization"][0]["ND-Company"]["ND-CompanyContact"] == {}
+    assert orgs["ND-Organization"][1]["ND-Company"] == {"BT-165-Organization-Company": "sme"}
+    assert "ND-UBO" not in orgs and "owner" not in ulozeny["deti"][0]
+    assert len(vynechano) == 6 and "Jan Novák" not in json.dumps(ulozeny, ensure_ascii=False)
+
+
+def test_udaje_detailu_formulare_vysledku():
+    detail = {"formular": "F2025-035449", "submission": FORMULAR["souhrn"]["id"], "deti": FORMULAR["deti"]}
+    u = vvz.udaje_detailu(detail, FORMULAR["souhrn"])
+    assert (u["ico_zadavatelu"], u["ico_dodavatelu"]) == (["70889546"], ["26014998"])
+    assert [h for h, _m in u["predpokladana_hodnota"]] == [6262283] and u["vysoutezena_cena"][0][1] == "CZK"
+    assert [h for h, _m in u["vysoutezena_cena"]] == [Decimal("5458000.01")]
+    assert (u["pocet_nabidek"], u["druh_rizeni"], u["cpv"]) == ([3], "open", ["45221100"])
+    assert (u["ev_cislo_zakazky"], u["identifikator_nipez"]) == ("Z2025-010690", "RVZ2500081945")
+    assert u["vysledek"] and u["vybran_dodavatel"] and u["lhuty"] == {"podani_nabidek": [], "zadosti_o_ucast": []}
+    assert u["typ_oznameni"] == "result"
+    prazdny = vvz.udaje_detailu({"formular": "F1", "deti": []})
+    assert not prazdny["eforms"] and prazdny["ico_dodavatelu"] == []
 
 
 def test_registr_smluv_z_dennich_dumpu(conn, tmp_path):
@@ -326,4 +427,8 @@ def test_prikaz_stav_a_neznamy_zdroj(conn, tmp_path, test_db_url, monkeypatch, c
     vystup = capsys.readouterr().out
     assert "isvz" in vystup and "preskoceno" in vystup
     assert cli.main(["sber", "--zdroje", "neexistuje"]) == 2
-    assert list(sberace.SBERACE) == ["registr_smluv", "vvz", "isvz", "nen", "red", "cedr", "dotaceeu_2127"]
+    # detail VVZ běží v make sber hned po souhrnech VVZ (bere z nich seznam formulářů)
+    assert list(sberace.SBERACE) == ["registr_smluv", "vvz", "vvz_detail", "isvz", "nen", "red", "cedr",
+                                     "dotaceeu_2127"]
+    assert cli.main(["uplnost", "--od", "2026-08-26", "--do", "2026-09-26"]) == 0
+    assert "staženo" in capsys.readouterr().out
