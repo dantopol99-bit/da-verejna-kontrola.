@@ -1,6 +1,6 @@
 {
-  "kod": "ind-dodavatel-pasmo-kotvy-2026.09",
-  "popis": "Dodavatel ve sledovaném pásmu kotvy: podíl objemu zadavatele u takových dodavatelů",
+  "kod": "ind-rizikove-pasmo-2026.09",
+  "popis": "Dodavatel v rizikovém pásmu (pojem kotvy): podíl objemu zadavatele u dodavatelů, které kotva řadí do rizikového pásma",
   "platnost_od": "2026-09-26",
   "dokument": "metodika/indikatory-2026.09.md",
   "parametry": {

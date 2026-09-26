@@ -6,6 +6,7 @@
   "parametry": {
     "min_pocet_pripadu": 5,
     "min_zaklad": null,
-    "stav": "spocteno"
+    "stav": "nahrazena",
+    "nahrazena_verzi": "ind-zkracene-lhuty-2026.09.2"
   }
 }

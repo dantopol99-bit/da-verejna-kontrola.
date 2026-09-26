@@ -13,7 +13,8 @@ VENV := .venv
 PY := $(VENV)/bin/python
 STAMP := $(VENV)/.nainstalovano
 
-.PHONY: help setup db migrate test lint gate pilot pilot-report db-stop sber sber-stav
+.PHONY: help setup db migrate test lint gate pilot pilot-report db-stop sber sber-stav normalizace indikatory \
+	kontrolni-sada
 
 help:
 	@echo "make setup   – virtuální prostředí (Python 3.12) a závislosti"
@@ -26,6 +27,9 @@ help:
 	@echo "make sber    – všechny stahovače do raw za poslední měsíc (ZDROJE=\"vvz red\" jen vybrané,"
 	@echo "               LIMIT_MINUT=N omezí navazující detail VVZ)"
 	@echo "make sber-stav – přehled posledních běhů sběru"
+	@echo "make normalizace – raw -> core (IČO, částky, toky, limity), měření do docs/blok3.md"
+	@echo "make indikatory  – indikátory nad core (výsledky do ind), rozložení do docs/blok4_indikatory.json"
+	@echo "make kontrolni-sada – docs/kontrolni_sada.csv k ručnímu potvrzení"
 
 $(STAMP): pyproject.toml
 	@if command -v uv >/dev/null 2>&1; then \
@@ -74,3 +78,14 @@ sber: migrate
 
 sber-stav: migrate
 	$(PY) -m pvk.sber stav
+
+normalizace: migrate
+	$(PY) -m pvk.normalizace
+
+indikatory: migrate
+	$(PY) -m pvk.indikatory
+	$(PY) -m pvk.publikace
+
+kontrolni-sada: migrate
+	$(PY) -m pvk.kontrolni_sada
+	$(PY) -m pvk.publikace

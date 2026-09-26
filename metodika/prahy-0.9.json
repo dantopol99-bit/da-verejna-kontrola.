@@ -1,0 +1,17 @@
+{
+  "kod": "prahy-0.9",
+  "popis": "Prozatímní metoda prahů indikátorů v0.9: p90 (podíly), p95 (počty), skupinově od 30 výsledků, jinak celkový práh indikátoru",
+  "platnost_od": "2026-09-26",
+  "dokument": "docs/prahy_navrh.md",
+  "parametry": {
+    "metoda": {
+      "podily": "p90",
+      "pocty": "p95",
+      "skupinove_od_vysledku": 30,
+      "jinak": "celkový práh indikátoru"
+    },
+    "hodnoty_schvaleny": false,
+    "min_mesicu_dat": 12,
+    "stav": "metoda schválena prozatímně (v0.9); konkrétní hodnoty neschváleny – přepočet a schválení na min. 12 měsících dat (D-052)"
+  }
+}

@@ -17,8 +17,8 @@ Zkrácené lhůty: nadlimitní režim = formulář odeslaný do TED; lhůta v ka
 pracovních dnech (podlimitní, bez víkendů a svátků ČR); zákonná zkrácení (předběžné oznámení, § 57 odst. 2)
 se nezohledňují, proto jde jen o signál. Nový subjekt: datum vzniku z kotvy, subjekt vzniklý přeměnou (fúze,
 rozdělení, změna právní formy podle „ostatních skutečností“ v OR) nový není; bez dostupného záznamu OR se
-nehodnotí. Fyzické osoby se nikdy nezobrazují (pravidlo 4).
+nehodnotí. Fyzické osoby se nikdy nezobrazují (pravidlo 4). Od verze 2026.09.2 (D-053) je hodnotou stáří subjektu v den toku a zkrácené lhůty zohledňují zákonná zkrácení (§ 54 odst. 4, § 57 odst. 2).
 
 **Čekají na zdroj** (funkce a testy na vzorových datech, na skutečných datech se nepočítají, brána výsledky
-nepustí): dělení pod limit (registr smluv), dodavatel ve sledovaném pásmu kotvy (kotva), změna struktury
+nepustí): dělení pod limit (registr smluv), dodavatel v rizikovém pásmu (pojem kotvy, D-054) (kotva), změna struktury
 v okně (obchodní rejstřík z kotvy). Závislost na veřejných penězích se ve v1 nevydává (D-027).

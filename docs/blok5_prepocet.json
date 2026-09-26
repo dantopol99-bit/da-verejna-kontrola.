@@ -1,0 +1,47 @@
+{
+ "zkracene_lhuty": {
+  "kandidatu": 174,
+  "nad_minimem": 9,
+  "vlozeno": 9,
+  "rozlozeni": [
+   {
+    "skupina": "lhuta_nabidky_nadlimitni_otevrene",
+    "n": 9,
+    "p50": 0.1667,
+    "p75": 0.2,
+    "p90": 0.26000000000000006,
+    "p95": 0.3799999999999999
+   }
+  ],
+  "priznaky_zahajeni": {
+   "": 321,
+   "pinnal": 3,
+   "pin": 4
+  }
+ },
+ "novy_subjekt": {
+  "kandidatu": 12296,
+  "nad_minimem": 12296,
+  "vlozeno": 9745,
+  "do_365_dni": 37,
+  "rozlozeni": [
+   {
+    "skupina": "dotaceeu_2127: dodavatelé v den toku",
+    "n": 11489,
+    "p50": 8500.0,
+    "p75": 11152.0,
+    "p90": 12035.0,
+    "p95": 12343.6
+   },
+   {
+    "skupina": "vvz: dodavatelé v den toku",
+    "n": 807,
+    "p50": 9746.0,
+    "p75": 11885.5,
+    "p90": 12520.0,
+    "p95": 12687.1
+   }
+  ],
+  "dodavatelu_do_365": 33
+ }
+}

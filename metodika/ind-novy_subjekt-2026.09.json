@@ -7,6 +7,7 @@
     "min_pocet_pripadu": 1,
     "min_zaklad": null,
     "max_stari_dnu": 365,
-    "stav": "spocteno"
+    "stav": "nahrazena",
+    "nahrazena_verzi": "ind-novy-subjekt-2026.09.2"
   }
 }

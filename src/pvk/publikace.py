@@ -13,6 +13,8 @@ Podmínky nepublikování (každá má kód porušení):
   SOUHRN_BEZ_ROZPETI  (podíl heuristiky nad zveřejněným prahem metodiky -> souhrn musí uvádět rozpětí, D-046)
   PAROVANI_NEOVERENE  (párování smlouva–zakázka nesmí do výstupu, dokud metodika párování není ověřena, D-049)
   INDIKATOR_CEKA_NA_ZDROJ  (indikátor, jehož metodika čeká na zdroj, se nepublikuje, D-050)
+  INDIKATOR_NEUPLNA_METODIKA / INDIKATOR_METODIKA_NAHRAZENA  (neúplná nebo nahrazená verze metodiky, D-053)
+  PRAH_NESCHVALEN  (výsledek označený jako nad prahem, dokud hodnoty prahů nejsou schválené, D-052)
 
 Brána se spouští jako `python -m pvk.publikace` (make gate / make pilot) a v testech
 (tests/test_publikacni_podminky.py); jakékoli porušení ve výstupech shodí build.
@@ -46,7 +48,8 @@ HODNOTICI_VZORY: tuple[tuple[re.Pattern[str], str], ...] = (
 # Kde leží výstupy, které se kontrolují (relativně ke kořeni repozitáře).
 VYSTUPNI_ADRESARE = ("vystupy",)
 VYSTUPNI_SOUBORY = ("docs/pilot_report.md", "docs/pilot_vyjimky.csv", "docs/pilot_vyjimky_kategorie.csv",
-                    "docs/blok4.md", "docs/prahy_navrh.md")
+                    "docs/blok4.md", "docs/prahy_navrh.md", "docs/kontrolni_sada.csv", "docs/stav.md",
+                    "docs/rozhrani_kotva.md")
 ADRESAR_METODIK = "metodika"
 
 
@@ -100,8 +103,13 @@ def over_indikator(v: Mapping, metodika: Mapping | None, kde: str = "") -> list[
                 kde,
             )
         )
-    if metodika is not None and metodika.get("stav") == "ceka_na_zdroj":
+    stav = (metodika or {}).get("stav")
+    if stav == "ceka_na_zdroj":
         p.append(Poruseni("INDIKATOR_CEKA_NA_ZDROJ", "indikátor čeká na zdroj dat, výsledky se nepublikují", kde))
+    elif stav == "neuplna_metodika":
+        p.append(Poruseni("INDIKATOR_NEUPLNA_METODIKA", "metodika indikátoru je neúplná, výsledky se nepublikují", kde))
+    elif stav == "nahrazena":
+        p.append(Poruseni("INDIKATOR_METODIKA_NAHRAZENA", "verze metodiky je nahrazená novou verzí", kde))
     if metodika is not None and v.get("pocet_pripadu") is not None:
         minimum = metodika.get("min_pocet_pripadu")
         if minimum is None:
@@ -183,6 +191,24 @@ def over_parovani(v: Mapping, metodiky: Mapping[str, Mapping], kde: str = "") ->
     if pouziva:
         return [Poruseni("PAROVANI_NEOVERENE", "výstup stojí na párování smlouva–zakázka, jehož váhy a práh nejsou "
                          "ověřené na registru smluv", kde)]
+    return []
+
+
+KLICE_PRAHU = ("nad_prahem", "prah", "oznaceni_prahu")
+
+
+def prahy_schvaleny(metodiky: Mapping[str, Mapping]) -> bool:
+    """Hodnoty prahů jsou schválené, jen když to uvádějí všechny verze metodiky prahů (metodika/prahy-*.json)."""
+    verze = [p for kod, p in metodiky.items() if kod.startswith("prahy-")]
+    return bool(verze) and all(p.get("hodnoty_schvaleny") is True for p in verze)
+
+
+def over_prah(v: Mapping, metodiky: Mapping[str, Mapping], kde: str = "") -> list[Poruseni]:
+    """D-052: metoda prahů je schválená prozatímně (v0.9), hodnoty ne. Výsledek označený jako nad prahem (nebo
+    nesoucí hodnotu prahu) se nepublikuje, dokud hodnoty nejsou schválené."""
+    oznaceny = v.get("nad_prahem") not in (None, False) or any(v.get(k) not in (None, "") for k in KLICE_PRAHU[1:])
+    if oznaceny and not prahy_schvaleny(metodiky):
+        return [Poruseni("PRAH_NESCHVALEN", "výsledek je označen vůči prahu, jehož hodnota není schválená", kde)]
     return []
 
 
@@ -268,7 +294,7 @@ def nacti_metodiky(koren: Path = KOREN) -> dict[str, dict]:
 
 def over_vystup(vystup: Mapping, metodiky: Mapping[str, Mapping], kde: str) -> list[Poruseni]:
     druh = vystup.get("druh")
-    puvod = over_puvod(vystup, kde) + over_parovani(vystup, metodiky, kde)
+    puvod = over_puvod(vystup, kde) + over_parovani(vystup, metodiky, kde) + over_prah(vystup, metodiky, kde)
     if druh in ("indikator", "souhrn", "castka"):
         puvod += over_stav_k_datu(vystup, kde)
     if druh == "indikator":
