@@ -11,6 +11,7 @@ import re
 import statistics
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pvk.config import KOREN
 from pvk.pilot.kontext import KOD_METODIKY, Kontext
@@ -82,16 +83,19 @@ def zapis_vyjimky(p1: dict | None, p3: dict | None, docs: Path = DOCS) -> list[d
         for v in (zdroj or {}).get("vyjimky", []):
             radky.append({"mereni": mereni, **v})
     radky.sort(key=lambda r: (r["mereni"], r["udaj"], int(r["zaznam"])))
+    sloupce = ["id", "mereni", "zaznam", "udaj", "hodnota_metadata", "nalezeno_v_textu", "odkaz_zaznamu",
+               "odkaz_originalu", "navrh_verdiktu", "zduvodneni", "potvrzeno"]
     for i, r in enumerate(radky, 1):
         r["id"] = f"V{i:03d}"
-        r["potvrzeno"] = ""
-    _zapis_csv(
-        docs / "pilot_vyjimky.csv",
-        radky,
-        ["id", "mereni", "zaznam", "udaj", "hodnota_metadata", "nalezeno_v_textu", "odkaz_zaznamu",
-         "odkaz_originalu", "navrh_verdiktu", "zduvodneni", "potvrzeno"],
-    )
+        r["kategorie"] = r["navrh_verdiktu"].startswith(KATEGORIE_PRIJATE_AUTOMATICKY)
+        r["potvrzeno"] = "přijato automaticky jako kategorie (D-031)" if r["kategorie"] else ""
+    _zapis_csv(docs / "pilot_vyjimky.csv", [r for r in radky if not r["kategorie"]], sloupce)
+    _zapis_csv(docs / "pilot_vyjimky_kategorie.csv", [r for r in radky if r["kategorie"]], sloupce)
     return radky
+
+
+# D-031: tyto verdikty se přijímají jako kategorie; ručně se potvrzují jen neshody, částka jen v příloze a jiné IČO
+KATEGORIE_PRIJATE_AUTOMATICKY = ("NELZE OVĚŘIT", "NEJASNÉ")
 
 
 def zapis_data(p1, p2, p3, p4, data: Path = DATA) -> None:
@@ -179,19 +183,22 @@ def zapis_ind(ctx: Kontext, mereni: list[tuple[str, dict | None, str]]) -> int:
 # --- doporučení ------------------------------------------------------------------------------------
 
 
-def doporuceni(ctx: Kontext, p1, p2, p3, p4) -> dict:
+def doporuceni(ctx: Kontext, p1, p2, p3, p4, p1m=None) -> dict:
     prahy = ctx.metodika["doporuceni"]
 
     def hodnota(d):
         return d["podil"] if d and d.get("jmenovatel") else None
 
     a_podminky = [
-        ("P1 IČO obou stran i částka", hodnota(p1 and p1["m1_ico_obe_strany_a_castka"]), prahy["toky_min_p1_ico_obe_strany_a_castka"]),
+        ("P1 IČO obou stran i částka", hodnota((p1m or p1) and (p1m or p1)["m1_ico_obe_strany_a_castka"]),
+         prahy["toky_min_p1_ico_obe_strany_a_castka"]),
         ("P2 spárováno doloženě", hodnota(p2 and p2["dolozene"]), prahy["toky_min_p2_dolozene"]),
         ("P2 spárováno celkem", hodnota(p2 and p2["sparovano_celkem"]), prahy["toky_min_p2_sparovano_celkem"]),
     ]
     b_podminky = [("P3 roční hodnota určitelná", hodnota(p3 and p3["ano"]), prahy["zavislost_min_p3_rocni_ano"])]
     for registr, r in (p4 or {}).items():
+        if registr in VYRAZENE_REGISTRY:
+            continue
         b_podminky.append((f"P4 spárovatelnost – {REGISTRY_KRATCE.get(registr, registr)}",
                            hodnota(r.get("sparovatelne")) if r.get("stav") == "zmereno" else None,
                            prahy["zavislost_min_p4_sparovatelnost"]))
@@ -219,6 +226,17 @@ def _tabulka_podminek(podminky) -> list[str]:
 
 
 VERDIKTY_P3 = {"ano": "ano", "ne": "ne", "nejasne": "nejasné"}
+ZDROJ_RS = {"hlidac": "zdroj: zrcadlo Hlídač státu", "oficialni": "zdroj: oficiální data registru smluv"}
+VYRAZENE_REGISTRY = {"szif"}  # D-028
+ROZHODNUTI = [
+    "**D-026 (D1)** – souhrny v rámci jednoho zdroje a jednoho typu částky se smějí tvrdit jako toky, vždy "
+    "s uvedeným pokrytím; propojení zakázka → smlouva jen jako případy se stavem shody (doložená / pravděpodobná).",
+    "**D-027 (D2)** – indikátor závislosti na veřejných penězích se ve v1 nevydává; tržby a smluvní objem "
+    "se zobrazují vedle sebe bez podílu.",
+    "**D-028 (D3)** – SZIF je z v1 vyřazen.",
+    "**D-029 (D4)** – prahy pilotu 90 / 50 / 80 % jsou potvrzeny jako metodické.",
+    "**D-030 (D5)** – zrcadlo Hlídače státu jen pro pilot; v provozu výhradně oficiální zdroje.",
+]
 VYRAZENI_P2 = {"zneplatneny_formular": "zneplatněný formulář", "bez_uzavrene_smlouvy": "bez uzavřené smlouvy",
                "neznama_struktura_formulare": "neznámá struktura formuláře",
                "stranka_bez_vysledku": "prázdná stránka výsledků"}
@@ -261,9 +279,10 @@ KATEGORIE_P4 = {
 def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Path:
     dostupnost = ctx.nacti("dostupnost") or []
     p1, p2, p3, p4 = ctx.nacti("p1"), ctx.nacti("p2"), ctx.nacti("p3"), ctx.nacti("p4")
+    p1m = ctx.nacti("p1_metadata")
     vyjimky = zapis_vyjimky(p1, p3, docs)
     zapis_data(p1, p2, p3, p4, docs / "pilot_data")
-    dop = doporuceni(ctx, p1, p2, p3, p4)
+    dop = doporuceni(ctx, p1, p2, p3, p4, p1m)
     mereni_ind = []
     if p1:
         mereni_ind += [("pilot_p1_ico_obe_strany_a_castka", p1["m1_ico_obe_strany_a_castka"], "Podíl záznamů RS s IČO obou stran i částkou."),
@@ -293,20 +312,37 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
     w("Výsledky jsou měření kvality zdrojových dat, ne hodnocení subjektů. Všechny podíly jsou uvedeny "
       "s 95% intervalem spolehlivosti (Wilson).")
     w("")
+    nedostupne: dict[str, str] = {}
+    for d in dostupnost:
+        if d["stav"] != "dostupne":
+            duvod = "anti-bot výzva" if d["stav"] == "antibot_vyzva" else _popis_chyby(d.get("chyba")) or "nedostupné"
+            nedostupne.setdefault(urlsplit(d["url"]).hostname or d["url"], f"{d['popis']}: {duvod}")
+    if nedostupne:
+        w("**Nedostupné domény** (test dostupnosti při posledním běhu, podrobnosti v kapitole 1):")
+        w("")
+        for domena, popis in nedostupne.items():
+            w(f"* `{domena}` – {popis}")
+        w("")
 
     # --- shrnutí ---
     w("## Shrnutí – čtyři čísla")
     w("")
     w("| # | Měření | Výsledek |")
     w("|---|---|---|")
+    if p1m:
+        w(f"| P1 | Registr smluv: IČO obou stran **i** částka v metadatech (přeměření, n = {p1m['n']}, "
+          f"{ZDROJ_RS[p1m['zdroj']]}) | **{_t(p1m['m1_ico_obe_strany_a_castka'])}** |")
     if p1:
-        w(f"| P1 | Registr smluv: IČO obou stran **i** částka v metadatech | **{_t(p1['m1_ico_obe_strany_a_castka'])}** |")
-        w(f"| P1 | … částka jen v příloze (metadata bez částky, text ano) | {_t(p1['m2_castka_jen_v_priloze'])} |")
-        w(f"| P1 | … znečitelněné přílohy | {_t(p1['m3_znecitelneno'])} |")
-    else:
+        if not p1m:
+            w(f"| P1 | Registr smluv: IČO obou stran **i** částka v metadatech | **{_t(p1['m1_ico_obe_strany_a_castka'])}** |")
+        w(f"| P1 | … částka jen v příloze (pilot, n = {p1['n']}, text příloh, {ZDROJ_RS[p1['zdroj']]}) | "
+          f"{_t(p1['m2_castka_jen_v_priloze'])} |")
+        w(f"| P1 | … znečitelněné přílohy (pilot, n = {p1['n']}, {ZDROJ_RS[p1['zdroj']]}) | {_t(p1['m3_znecitelneno'])} |")
+    if not p1 and not p1m:
         w("| P1 | Registr smluv | neměřeno |")
     if p2:
-        w(f"| P2 | Zakázky VVZ spárované se smlouvou v RS **doloženě** | **{_t(p2['dolozene'])}** |")
+        w(f"| P2 | Zakázky VVZ spárované se smlouvou v RS **doloženě** (n = {p2['n']}; VVZ × RS ze zrcadla) | "
+          f"**{_t(p2['dolozene'])}** |")
         w(f"| P2 | … **jen heuristicky** (IČO + částka + datum) | **{_t(p2['jen_heuristicky'])}** |")
         w(f"| P2 | … nespárováno | {_t(Podil(p2['pocty']['nesparovano'], p2['n']).jako_dict())} |")
     else:
@@ -326,12 +362,14 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
                   f"{procenta(x['podil_fo_bez_ico_v_ramci']['podil'])} "
                   f"({x['podil_fo_bez_ico_v_ramci']['citatel']}/{x['podil_fo_bez_ico_v_ramci']['jmenovatel']}, úplný výčet) |")
         else:
-            w(f"| P4 | Příjemci – {REGISTRY.get(registr, registr)} | nedostupné: {x.get('duvod') or x.get('chyba', '')} |")
+            w(f"| P4 | Příjemci – {REGISTRY.get(registr, registr)} | "
+              + ("vyřazeno z v1 (D-028); " if registr in VYRAZENE_REGISTRY else "")
+              + f"nedostupné: {x.get('duvod') or x.get('chyba', '')} |")
     w("")
-    w(f"**(a) Toky, nebo jen případy?** → **{'systém může tvrdit toky' if dop['a']['splneno'] else 'jen případy'}** "
-      "(zdůvodnění v kapitole 5).")
-    w(f"**(b) Indikátor závislosti na veřejných penězích?** → **{'ano' if dop['b']['splneno'] else 'ne (v této verzi)'}** "
-      "(zdůvodnění v kapitole 5).")
+    w("**Rozhodnutí po pilotu** ([docs/decisions.md](decisions.md), D-026–D-030; podklady v kapitole 5):")
+    w("")
+    for radek in ROZHODNUTI:
+        w(f"* {radek}")
     w("")
 
     # --- zdroje ---
@@ -359,7 +397,7 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
           "tehdy, když se její SHA-256 shodoval s hashem přílohy z metadat registru smluv, tj. jde bajtově o tentýž "
           "soubor jako originál. Omezení zrcadla: částky jsou zobrazeny zaokrouhlené na celé koruny. "
           "Pipeline umí oficiální zdroj (denní dumpy XML) a přepne se na něj sama, jakmile bude dostupný "
-          "(`PVK_RS_BACKEND=auto`).")
+          "(`PVK_PILOT_RS_BACKEND=auto`); v provozu se používají výhradně oficiální zdroje (D-030).")
         w("")
     w("**NEN a ISVZ** (otevřená data VZ) nebyly dosažitelné; zakázky se čtou přímo z **Věstníku veřejných "
       "zakázek** (veřejné API webu VVZ), kam se oznámení z NEN i ostatních elektronických nástrojů odesílají. "
@@ -406,9 +444,27 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
     # --- výsledky ---
     w("## 3. Výsledky")
     w("")
+    if p1m:
+        rm = p1m["rozpad"]
+        w("### P1 – registr smluv: přeměření po pilotu (jen metadata)")
+        w("")
+        w(f"Vzorek **{p1m['n']}** platných záznamů zveřejněných ve sledovaném období, **{ZDROJ_RS[p1m['zdroj']]}**"
+          + (" (oficiální data registru smluv nebyla dostupná, viz začátek reportu)" if p1m["zdroj"] == "hlidac" else "")
+          + ". Požadováno bylo 500 záznamů; vzorek je zmenšen na minimum 300 kvůli časovému rozpočtu session (D-032). "
+          "Výběr používá stejný postup a seed jako pilot, prvních 200 záznamů je vzorek pilotu. Kontrola metadat "
+          "proti textu originálů se neopakuje (proběhla v pilotu, níže).")
+        w("")
+        w("| Ukazatel | Podíl (95% IS) |")
+        w("|---|---|")
+        w(f"| IČO publikujícího subjektu | {_t(rm['ico_subjektu'])} |")
+        w(f"| IČO alespoň jedné smluvní strany | {_t(rm['ico_protistrany'])} |")
+        w(f"| Částka v metadatech (bez DPH, s DPH nebo v cizí měně) | {_t(rm['castka_v_metadatech'])} |")
+        w(f"| **IČO obou stran i částka** | **{_t(p1m['m1_ico_obe_strany_a_castka'])}** |")
+        w(f"| Metadata bez částky s uvedeným důvodem neuvedení ceny | {_t(rm['duvod_neuvedeni_ceny'])} |")
+        w("")
     if p1:
         rz = p1["rozpad"]
-        w("### P1 – registr smluv")
+        w(f"### P1 – registr smluv: pilot (n = {p1['n']}, metadata i text příloh, {ZDROJ_RS[p1['zdroj']]})")
         w("")
         w("| Ukazatel | Podíl |")
         w("|---|---|")
@@ -446,6 +502,10 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
         w("")
     if p2:
         w("### P2 – zakázky z VVZ × smlouvy v registru smluv")
+        w("")
+        w(f"Vzorek **{p2['n']}** zakázek (požadováno 100, zmenšeno na minimum 60 kvůli časovému rozpočtu session, "
+          "D-032; prvních 50 je vzorek pilotu). Zakázky: **Věstník veřejných zakázek** (oficiální API). Smlouvy: "
+          "**registr smluv přes zrcadlo Hlídač státu** (oficiální registr, NEN ani ISVZ nebyly dostupné).")
         w("")
         metody: dict[str, int] = {}
         for x in p2["polozky"]:
@@ -554,21 +614,25 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
     # --- výjimky ---
     w("## 4. Křížová kontrola a výjimky k potvrzení")
     w("")
-    typy: dict[tuple[str, str], int] = {}
-    verdikty: dict[str, int] = {}
-    for v in vyjimky:
-        typy[(v["mereni"], v["udaj"])] = typy.get((v["mereni"], v["udaj"]), 0) + 1
-        druh = v["navrh_verdiktu"].split(" – ")[0]
-        verdikty[druh] = verdikty.get(druh, 0) + 1
-    w(f"[docs/pilot_vyjimky.csv](pilot_vyjimky.csv) obsahuje **{len(vyjimky)}** výjimek k potvrzení.")
+    rucni = [v for v in vyjimky if not v["kategorie"]]
+    kategorie = [v for v in vyjimky if v["kategorie"]]
+    w(f"Křížová kontrola metadata × text originálu proběhla v pilotu (P1, n = {p1['n'] if p1 else 0}) a po pilotu "
+      "se neopakuje. Výjimky jsou rozděleny podle D-031:")
     w("")
+    w(f"* **k ručnímu potvrzení** – [docs/pilot_vyjimky.csv](pilot_vyjimky.csv): **{len(rucni)}** "
+      "(neshoda částky nebo data, částka jen v příloze, jiné IČO v textu);")
+    w(f"* **přijaté automaticky jako kategorie** – [docs/pilot_vyjimky_kategorie.csv](pilot_vyjimky_kategorie.csv): "
+      f"**{len(kategorie)}** („nelze ověřit“ – text přílohy IČO neuvádí; „nejasná roční hodnota“ – P3).")
+    w("")
+    typy: dict[tuple[str, str, str], int] = {}
+    for v in vyjimky:
+        klic = ("ručně" if not v["kategorie"] else "kategorie", v["mereni"], v["udaj"])
+        typy[klic] = typy.get(klic, 0) + 1
     if typy:
-        w("| Měření | Výjimka | `udaj` v CSV | Počet |")
-        w("|---|---|---|---|")
-        for (mereni, udaj), pocet in sorted(typy.items()):
-            w(f"| {mereni} | {DRUHY_VYJIMEK.get(udaj, udaj)} | `{udaj}` | {pocet} |")
-        w("")
-        w("Návrhy verdiktů: " + ", ".join(f"{k} {v}" for k, v in sorted(verdikty.items(), key=lambda x: -x[1])) + ".")
+        w("| Režim | Měření | Výjimka | `udaj` v CSV | Počet |")
+        w("|---|---|---|---|---|")
+        for (rezim, mereni, udaj), pocet in sorted(typy.items(), key=lambda x: (x[0][0] != "ručně", x[0][1:])):
+            w(f"| {rezim} | {mereni} | {DRUHY_VYJIMEK.get(udaj, udaj)} | `{udaj}` | {pocet} |")
         w("")
     w("Každý řádek má údaj, hodnotu v metadatech, co bylo nalezeno v textu, odkaz na záznam a na originál "
       "přílohy a návrh verdiktu. Sloupec `potvrzeno` je prázdný pro vaše potvrzení (ANO / NE / poznámka). "
@@ -577,40 +641,39 @@ def vytvor(ctx: Kontext, trvani_s: float | None = None, docs: Path = DOCS) -> Pa
     w("")
 
     # --- doporučení ---
-    w("## 5. Doporučení")
+    w("## 5. Rozhodnutí po pilotu")
     w("")
-    w("Prahy byly stanoveny **před měřením** v parametrech metodiky (`doporuceni`).")
+    w("Prahy byly stanoveny **před měřením** v parametrech metodiky (`doporuceni`) a rozhodnutím D-029 "
+      "potvrzeny jako metodické. Podmínka P1 se vyhodnocuje na přeměřeném vzorku (n = "
+      f"{(p1m or p1 or {}).get('n', 0)}).")
     w("")
-    w("### (a) Systém může tvrdit toky, nebo jen případy?")
+    w("### (a) Toky, nebo jen případy? → D-026")
     w("")
     r += _tabulka_podminek(dop["a"]["podminky"])
     w("")
-    if dop["a"]["splneno"]:
-        w("**Doporučení: systém může tvrdit toky** (agregace plátce → příjemce), vždy s podílem objemu, který stojí "
-          "na heuristickém párování.")
-    else:
-        w("**Doporučení: jen případy.** Platforma má ve v1 zobrazovat jednotlivé případy (zakázka, smlouva, dotace) "
-          "s odkazem na zdroj a se stavem vazby (doložená / pravděpodobná se skóre), ne agregované toky mezi "
-          "subjekty. Toky v `core` slouží jako vnitřní struktura; agregovat je lze jen tam, kde jsou vazby "
-          "doložené a částky stejného typu, a každý souhrn musí nést podíl heuristické deduplikace.")
+    w("**Rozhodnutí (D-026):** souhrny v rámci jednoho zdroje a jednoho typu částky se smějí tvrdit jako toky, "
+      "vždy s uvedeným pokrytím (podíl záznamů s IČO obou stran a částkou). Propojení zakázka → smlouva se "
+      "zobrazuje jen jako případy se stavem shody (doložená / pravděpodobná se skóre). Prahy pro toky napříč "
+      "zdroji splněny nejsou (tabulka výše); sčítání napříč typy částky je zakázané a deduplikace mezi zdroji "
+      "souhrny v rámci jednoho zdroje neohrožuje.")
     if dop["a"]["chybi"]:
         w("")
-        w("Neměřené podmínky: " + ", ".join(dop["a"]["chybi"]) + " – doporučení je podmíněné jejich doměřením.")
+        w("Neměřené podmínky: " + ", ".join(dop["a"]["chybi"]) + ".")
     w("")
-    w("### (b) Indikátor závislosti na veřejných penězích")
+    w("### (b) Indikátor závislosti na veřejných penězích → D-027, D-028")
     w("")
     r += _tabulka_podminek(dop["b"]["podminky"])
     w("")
-    if dop["b"]["splneno"]:
-        w("**Doporučení: ano** – s typovanými ročními částkami a podílem heuristiky v každém výsledku.")
-    else:
-        w("**Doporučení: ne (v této verzi).** Indikátor závislosti potřebuje roční hodnotu plnění a spolehlivé "
-          "napojení příjemců na IČO; tam, kde podmínky splněny nejsou, by indikátor sčítal částky s nejasnou "
-          "periodou nebo neúplný okruh příjemců. Doporučujeme vrátit se k němu po zavedení periody částky "
-          "z textu smluv (P3) a po ověření výjimek.")
-    if dop["b"]["chybi"]:
-        w("")
-        w("Neměřené podmínky: " + ", ".join(dop["b"]["chybi"]) + ".")
+    w("**Rozhodnutí (D-027):** indikátor závislosti na veřejných penězích se ve v1 nevydává; tržby a smluvní "
+      "objem se zobrazují vedle sebe bez podílu. Roční hodnotu opakovaného plnění nelze spolehlivě určit "
+      "(P3 pod prahem). **SZIF je z v1 vyřazen (D-028)**, jeho podmínka se nevyhodnocuje.")
+    w("")
+    w("### Zdroje v provozu → D-030")
+    w("")
+    w("Zrcadlo Hlídače státu posloužilo jen pilotu. V provozu se registr smluv čte výhradně z oficiálních dat "
+      "(`PVK_RS_BACKEND=oficialni`, denní dumpy `data.smlouvy.gov.cz`); oficiální stahovač ověřuje SHA-256 "
+      "každé přílohy proti hashi z oficiálních metadat a je otestovaný na vzorových datech "
+      "(`tests/test_oficialni_rs.py`), protože oficiální zdroj nebyl z prostředí dostupný.")
     w("")
 
     # --- omezení ---

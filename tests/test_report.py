@@ -86,11 +86,19 @@ def test_report_ze_syntetickych_vysledku(db, tmp_path):
     text = cesta.read_text(encoding="utf-8")
     for kus in ("## Shrnutí – čtyři čísla", "| P1 |", "| P2 |", "| P3 |", "| P4 |", "(a) Toky", "(b) Indikátor"):
         assert kus in text
-    assert "**jen případy**" in text  # P1 85 % < 90 % -> podmínka (a) nesplněna
+    # rozhodnutí po pilotu (D-026–D-030) místo doporučení; SZIF se nevyhodnocuje (D-028)
+    for kus in ("D-026 (D1)", "D-027 (D2)", "D-028 (D3)", "D-029 (D4)", "D-030 (D5)", "## 5. Rozhodnutí po pilotu"):
+        assert kus in text
+    assert "P4 spárovatelnost – SZIF" not in text
     assert publikace.over_text(text) == []
+    # D-031: ručně jen neshody, částka jen v příloze a jiné IČO; „nelze ověřit“ a „nejasné“ jako kategorie
     with (docs / "pilot_vyjimky.csv").open(encoding="utf-8") as f:
-        radky = list(csv.DictReader(f))
-    assert radky[0]["id"] == "V001" and radky[0]["potvrzeno"] == ""
+        rucne = list(csv.DictReader(f))
+    with (docs / "pilot_vyjimky_kategorie.csv").open(encoding="utf-8") as f:
+        kategorie = list(csv.DictReader(f))
+    assert sorted(r["id"] for r in rucne + kategorie)[0] == "V001"
+    assert all(r["potvrzeno"] == "" and not r["navrh_verdiktu"].startswith(("NELZE", "NEJASNÉ")) for r in rucne)
+    assert all(r["potvrzeno"].startswith("přijato automaticky") for r in kategorie)
     # FO: IČO podnikající fyzické osoby se v datech P4 nezobrazuje
     with (docs / "pilot_data" / "p4_vzorek.csv").open(encoding="utf-8") as f:
         assert all(r["ico"] == "" for r in csv.DictReader(f) if r["je_fyzicka_osoba"] == "True")

@@ -161,6 +161,20 @@ class OficialniRS:
         return rng.sample(fond, min(n, len(fond)))
 
     def priloha(self, priloha: PrilohaRS) -> Odpoved | None:
+        """Stáhne přílohu z registru smluv a ověří její SHA-256 proti hashi z oficiálních metadat
+        (element `hash` v dumpu). Soubor s jiným hashem se odmítne výjimkou NeshodaHashe – do dalšího
+        zpracování se nedostane; pokus zůstává zapsaný v raw.stazeni."""
         if not priloha.url_original:
             return None
-        return self.s.ziskej(ZDROJ, priloha.url_original, timeout=(20, 300))
+        odp = self.s.ziskej(ZDROJ, priloha.url_original, timeout=(20, 300))
+        if odp.status == 200 and priloha.sha256 and odp.sha256 != priloha.sha256:
+            raise NeshodaHashe(priloha.url_original, priloha.sha256, odp)
+        return odp
+
+
+class NeshodaHashe(Exception):
+    """Stažená příloha se neshoduje s hashem z oficiálních metadat registru smluv."""
+
+    def __init__(self, url: str, ocekavany: str, odpoved: Odpoved):
+        super().__init__(f"{url}: SHA-256 {odpoved.sha256} neodpovídá metadatům registru ({ocekavany})")
+        self.url, self.ocekavany, self.skutecny, self.odpoved = url, ocekavany, odpoved.sha256, odpoved

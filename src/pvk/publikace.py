@@ -39,7 +39,7 @@ HODNOTICI_VZORY: tuple[tuple[re.Pattern[str], str], ...] = (
 
 # Kde leží výstupy, které se kontrolují (relativně ke kořeni repozitáře).
 VYSTUPNI_ADRESARE = ("vystupy",)
-VYSTUPNI_SOUBORY = ("docs/pilot_report.md", "docs/pilot_vyjimky.csv")
+VYSTUPNI_SOUBORY = ("docs/pilot_report.md", "docs/pilot_vyjimky.csv", "docs/pilot_vyjimky_kategorie.csv")
 ADRESAR_METODIK = "metodika"
 
 

@@ -248,3 +248,58 @@ je právě to, co má potvrdit člověk.
 Pohled `ind.indikator_k_publikaci` vyřazoval výsledky, když metodika uváděla `"min_zaklad": null`.
 Oprava je v migraci 0006 (aplikovaná migrace 0004 se nemění, D-001); regresní test
 `test_db_min_zaklad_null_znamena_bez_minima_objemu`.
+
+## D-026 (D1 po pilotu) Toky jen v rámci jednoho zdroje a jednoho typu částky
+
+**Kontext.** Pilot (docs/pilot_report.md) nesplnil prahy pro tvrzení toků napříč zdroji: P1 86,5 %
+(práh 90 %), P2 doloženě 36 % (práh 50 %), P2 celkem 74 % (práh 80 %).
+**Rozhodnutí.** Souhrny v rámci jednoho zdroje a jednoho typu částky se smějí tvrdit jako toky, vždy
+s uvedeným pokrytím (podíl záznamů s IČO obou stran a částkou). Propojení zakázka → smlouva se
+zobrazuje jen jako případy se stavem shody (doložená / pravděpodobná se skóre), nikdy jako tok.
+**Důvod.** Sčítání napříč typy částky je technicky zakázané (D-005); deduplikace mezi zdroji se souhrnů
+v rámci jednoho zdroje netýká, takže je neohrožuje.
+**Důsledky.** Souhrn nese zdroj, typ částky a pokrytí; publikační brána dál odmítá souhrn přes více typů.
+
+## D-027 (D2 po pilotu) Indikátor závislosti na veřejných penězích se ve v1 nevydává
+
+**Kontext.** Roční hodnotu opakovaného plnění lze spolehlivě určit jen u 31 % smluv (P3, práh 80 %).
+**Rozhodnutí.** Indikátor se ve v1 nevydává. Tržby (z kotvy) a smluvní objem se zobrazují vedle sebe,
+bez podílu.
+**Důsledky.** Žádný výstup nesmí počítat podíl smluvního objemu na tržbách.
+
+## D-028 (D3 po pilotu) SZIF je z v1 vyřazen
+
+**Kontext.** Seznam příjemců SZIF vrací anti-bot výzvu (D-014); ochrana se neobchází.
+**Rozhodnutí.** Zemědělské dotace SZIF nejsou součástí v1. Podmínka P4 pro SZIF se nevyhodnocuje.
+**Důsledky.** Pokrytí dotací ve v1 = IS ReD a seznam operací EU 2021–2027; výstupy to uvádějí.
+
+## D-029 (D4 po pilotu) Prahy pilotu 90 / 50 / 80 % jsou metodické
+
+**Rozhodnutí.** Prahy pro tvrzení toků napříč zdroji (P1 ≥ 90 %, P2 doloženě ≥ 50 %, P2 celkem ≥ 80 %)
+jsou potvrzeny jako metodické: platí pro každé další měření a mění se jen novou verzí metodiky
+stanovenou před měřením.
+
+## D-030 (D5 po pilotu) Zrcadlo Hlídače státu jen pro pilot
+
+**Kontext.** Oficiální data registru smluv nebyla z prostředí pilotu dostupná (D-012).
+**Rozhodnutí.** Zrcadlo Hlídač státu smí použít jen pilot. V provozu se používají výhradně oficiální
+zdroje: výchozí `PVK_RS_BACKEND=oficialni`, `HlidacRS` jde vytvořit jen s `pilot=True` (jinak
+`PermissionError`), pilot má vlastní volbu `PVK_PILOT_RS_BACKEND` (výchozí `auto`). Oficiální stahovač
+(`OficialniRS`) ověřuje SHA-256 každé přílohy proti hashi z oficiálních metadat (dump) a přílohu
+s jiným hashem odmítne (`NeshodaHashe`). Protože oficiální zdroj nebyl dostupný, je stahovač otestován
+na vzorových datech (`tests/test_oficialni_rs.py`).
+
+## D-031 Výjimky pilotu: kategorie přijaté automaticky
+
+**Rozhodnutí.** Výjimky „nelze ověřit“ (text přílohy IČO neuvádí) a „nejasná roční hodnota“ (P3) se
+přijímají automaticky jako kategorie a jsou v `docs/pilot_vyjimky_kategorie.csv`. K ručnímu potvrzení
+v `docs/pilot_vyjimky.csv` zůstávají jen neshody částky a data, částka jen v příloze a jiné IČO v textu.
+
+## D-032 Přeměření P1 a P2 po pilotu
+
+**Kontext.** Zadání: P1 se vzorkem 500 smluv a P2 se 100 zakázkami, při riziku překročení časového
+rozpočtu session (30 min) nejméně 300 a 60.
+**Rozhodnutí.** Kvůli časovému rozpočtu 300 smluv a 60 zakázek. P1 se přeměřuje jen z metadat
+(kontrola proti textu originálů proběhla v pilotu na 200 smlouvách a neopakuje se). Výběr používá
+stejný seed, takže vzorek pilotu je prefixem nového vzorku. Oficiální zdroje registru smluv nebyly
+dostupné, P1 i kandidáti P2 proto pocházejí ze zrcadla; report to u každého čísla uvádí.

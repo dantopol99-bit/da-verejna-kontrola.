@@ -139,7 +139,7 @@ def vyber(ctx: Kontext, vvz: VVZ) -> tuple[list[tuple[dict, list, OznameniVVZ, i
 class ParovacRS:
     def __init__(self, ctx: Kontext):
         self.ctx = ctx
-        self.hs = HlidacRS(ctx.stahovac)
+        self.hs = HlidacRS(ctx.stahovac, pilot=True)
         self._detaily: dict[str, tuple[ZaznamRS | None, int | None]] = {}
 
     def detail(self, id_verze: str) -> tuple[ZaznamRS | None, int | None]:

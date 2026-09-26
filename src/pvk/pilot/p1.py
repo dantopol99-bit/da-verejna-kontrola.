@@ -35,7 +35,7 @@ from pvk.text.extrakce import (
     vektorove_cerne_obdelniky,
 )
 from pvk.zdroje.hlidac import HlidacRS
-from pvk.zdroje.registr_smluv import OficialniRS
+from pvk.zdroje.registr_smluv import NeshodaHashe, OficialniRS
 from pvk.zdroje.rs import PrilohaRS, ZaznamRS
 
 MAX_PRILOH = 12
@@ -46,7 +46,7 @@ MAX_VELIKOST_PRILOHY = 60 * 1024 * 1024
 
 
 def zvol_zdroj(ctx: Kontext) -> tuple[str, dict]:
-    volba = ctx.nast.rs_backend
+    volba = ctx.nast.pilot_rs_backend  # zrcadlo jen v pilotu (D-030)
     info: dict = {"volba": volba}
     if volba == "hlidac":
         return "hlidac", info
@@ -60,7 +60,7 @@ def zvol_zdroj(ctx: Kontext) -> tuple[str, dict]:
     if dostupny:
         return "oficialni", info
     if volba == "oficialni":
-        raise RuntimeError("oficiální otevřená data registru smluv nejsou dostupná a PVK_RS_BACKEND=oficialni")
+        raise RuntimeError("oficiální otevřená data registru smluv nejsou dostupná a PVK_PILOT_RS_BACKEND=oficialni")
     return "hlidac", info
 
 
@@ -155,7 +155,10 @@ def _stahni_prilohu(ctx: Kontext, zdroj: str, hs: HlidacRS | None, oficialni: Of
                     z: ZaznamRS, pr: PrilohaRS) -> Odpoved | None:
     if zdroj == "hlidac":
         return hs.kopie_prilohy(z.id_verze, pr)
-    return oficialni.priloha(pr)
+    try:
+        return oficialni.priloha(pr)
+    except NeshodaHashe as e:  # neshoda se níže zapíše jako shoda_hashe=False a příloha se nezpracuje
+        return e.odpoved
 
 
 def zpracuj(ctx: Kontext, zdroj: str, z: ZaznamRS, odp: Odpoved, hs: HlidacRS | None, oficialni: OficialniRS | None) -> tuple[dict, list[dict]]:
@@ -254,7 +257,7 @@ def mer(ctx: Kontext) -> dict:
     n = int(ctx.metodika["p1"]["n"])
     zdroj, info_zdroje = zvol_zdroj(ctx)
     LOG.info("P1: zdroj registru smluv = %s", zdroj)
-    hs = HlidacRS(ctx.stahovac)
+    hs = HlidacRS(ctx.stahovac, pilot=True)
     oficialni = OficialniRS(ctx.stahovac)
     if zdroj == "oficialni":
         vzorek = [(z, odp) for z, _xml, odp in oficialni.vzorek(n, ctx.od, ctx.do, ctx.rng("p1").randrange(2**31))]
@@ -297,4 +300,49 @@ def mer(ctx: Kontext) -> dict:
         "vyjimky": vyjimky,
     }
     ctx.uloz("p1", vysledky)
+    return vysledky
+
+
+def mer_metadata(ctx: Kontext) -> dict:
+    """Přeměření P1 po pilotu jen z metadat (bez stahování a čtení příloh; křížová kontrola s textem
+    proběhla v pilotu). Výběr je stejný postup se stejným seedem, prvních n pilotu je jeho prefixem."""
+    n = int(ctx.metodika["p1_metadata"]["n"])
+    zdroj, info_zdroje = zvol_zdroj(ctx)
+    LOG.info("P1 metadata: zdroj registru smluv = %s, n = %d", zdroj, n)
+    if zdroj == "oficialni":
+        oficialni = OficialniRS(ctx.stahovac)
+        vzorek = [(z, odp) for z, _xml, odp in oficialni.vzorek(n, ctx.od, ctx.do, ctx.rng("p1").randrange(2**31))]
+        stat_vyberu = {"metoda": "denni_dumpy"}
+    else:
+        vzorek, stat_vyberu = vzorek_hlidac(ctx, HlidacRS(ctx.stahovac, pilot=True), n)
+        stat_vyberu["metoda"] = "skupiny_id_zrcadlo"
+    polozky = []
+    for z, _odp in vzorek:
+        polozky.append({
+            "id_verze": z.id_verze,
+            "odkaz": z.odkaz,
+            "ico_subjektu": bool(z.subjekt and z.subjekt.ico_platne),
+            "ico_protistrany": any(s.ico_platne for s in z.smluvni_strany),
+            "castka_v_metadatech": z.ma_castku,
+            "duvod_neuvedeni_ceny": bool(z.duvod_neuvedeni_ceny),
+        })
+        p = polozky[-1]
+        p["m1_ico_obe_strany_a_castka"] = p["ico_subjektu"] and p["ico_protistrany"] and p["castka_v_metadatech"]
+    pocet = len(polozky)
+
+    def podil(klic: str) -> dict:
+        return Podil(sum(1 for p in polozky if p[klic]), pocet).jako_dict()
+
+    vysledky = {
+        "zdroj": zdroj,
+        "info_zdroje": info_zdroje,
+        "vyber": stat_vyberu,
+        "n": pocet,
+        "m1_ico_obe_strany_a_castka": podil("m1_ico_obe_strany_a_castka"),
+        "rozpad": {k: podil(k) for k in ("ico_subjektu", "ico_protistrany", "castka_v_metadatech",
+                                         "duvod_neuvedeni_ceny")},
+        "polozky": polozky,
+    }
+    LOG.info("P1 metadata: %d záznamů, IČO obou stran i částka %s", pocet, vysledky["m1_ico_obe_strany_a_castka"])
+    ctx.uloz("p1_metadata", vysledky)
     return vysledky
