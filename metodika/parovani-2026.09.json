@@ -5,11 +5,21 @@
   "dokument": "docs/decisions.md#d-045",
   "parametry": {
     "okno_dni": 30,
-    "tolerance_castky": 0.10,
-    "sazby_dph": [0.21, 0.12],
+    "tolerance_castky": 0.1,
+    "sazby_dph": [
+      0.21,
+      0.12
+    ],
     "predmet_plna_shoda": 0.5,
-    "vahy": {"ico": 0.4, "datum": 0.25, "castka": 0.25, "predmet": 0.1},
-    "prah_pravdepodobne": 0.70,
-    "max_skore": 0.999
+    "vahy": {
+      "ico": 0.4,
+      "datum": 0.25,
+      "castka": 0.25,
+      "predmet": 0.1
+    },
+    "prah_pravdepodobne": 0.7,
+    "max_skore": 0.999,
+    "overeno": false,
+    "stav": "neovereno: váhy a práh nejsou ověřené na registru smluv; párování nesmí vstoupit do žádného výstupu (D-049)"
   }
 }

@@ -1,0 +1,13 @@
+{
+  "kod": "ind-deleni-pod-limit-2026.09",
+  "popis": "Dělení pod limit: smlouvy téhož zadavatele s týmž dodavatelem pod limitem VZMR, dohromady nad ním",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 2,
+    "min_zaklad": null,
+    "okno_dni": 90,
+    "stav": "ceka_na_zdroj",
+    "zdroj": "registr smluv"
+  }
+}

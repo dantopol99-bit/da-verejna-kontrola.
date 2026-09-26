@@ -259,8 +259,9 @@ def test_db_indikator_bez_povinnych_udaju_nelze_ulozit(db, metodika_id, sloupec,
     radek[sloupec] = hodnota
     with pytest.raises(psycopg.errors.NotNullViolation):
         db.execute(
-            "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, metodika_verze_id) "
-            "VALUES (%(indikator_kod)s, %(obdobi_od)s, %(obdobi_do)s, %(pocet_pripadu)s, %(metodika_verze_id)s)",
+            "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, metodika_verze_id, "
+            "zaklad, srovnavaci_skupina) VALUES (%(indikator_kod)s, %(obdobi_od)s, %(obdobi_do)s, %(pocet_pripadu)s, "
+            "%(metodika_verze_id)s, 40, 'test')",
             radek,
         )
 
@@ -273,7 +274,7 @@ def test_db_k_publikaci_jen_nad_minimem_a_bez_hodnoticich_slov(db, metodika_id):
     ]:
         db.execute(
             "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, "
-            "metodika_verze_id, text) VALUES (%s, '2025-01-01', '2026-01-01', %s, %s, %s)",
+            "metodika_verze_id, text, zaklad, srovnavaci_skupina) VALUES (%s, '2025-01-01', '2026-01-01', %s, %s, %s, 40, 't')",
             (kod, pocet, metodika_id, text),
         )
     publikovatelne = {
@@ -318,8 +319,8 @@ def test_db_souhrn_ruznych_typu_nevznikne(db, metodika_id):
 
 def test_db_ind_je_pouze_pro_insert(db, metodika_id):
     db.execute(
-        "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, metodika_verze_id) "
-        "VALUES ('x', '2025-01-01', '2026-01-01', 40, %s)",
+        "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, metodika_verze_id, "
+        "zaklad, srovnavaci_skupina) VALUES ('x', '2025-01-01', '2026-01-01', 40, %s, 40, 't')",
         (metodika_id,),
     )
     with pytest.raises(psycopg.Error) as e:
@@ -333,7 +334,7 @@ def test_db_min_zaklad_null_znamena_bez_minima_objemu(db):
     db.commit()
     db.execute(
         "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, zaklad, "
-        "metodika_verze_id) VALUES ('se_zakladem', '2025-01-01', '2026-01-01', 40, 1, %s)",
+        "metodika_verze_id, srovnavaci_skupina) VALUES ('se_zakladem', '2025-01-01', '2026-01-01', 40, 1, %s, 't')",
         (klic,),
     )
     assert db.execute(
@@ -398,7 +399,7 @@ def test_db_dotacni_vysledek_bez_stavu_dat_se_nepublikuje(db, metodika_id):
                            "2026-02-21"), ("smlouvy", "smluvni", None)]:
         db.execute(
             "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, typ_castky, "
-            "stav_dat_k, metodika_verze_id) VALUES (%s, '2025-01-01', '2026-01-01', 40, %s, %s, %s)",
+            "stav_dat_k, metodika_verze_id, zaklad, srovnavaci_skupina) VALUES (%s, '2025-01-01', '2026-01-01', 40, %s, %s, %s, 40, 't')",
             (kod, typ, stav, metodika_id),
         )
     publikovatelne = {r["indikator_kod"] for r in db.execute(
@@ -431,5 +432,49 @@ SOUHRN_SUBJEKTU = {"druh": "souhrn", **CASTKA, "metodika_verze": "souhrny-2026.0
 )
 def test_souhrn_subjektu_bez_podilu_nebo_rozpeti_neprojde(tmp_path, zmena, kod):
     metodiky = publikace.nacti_metodiky()
+    metodiky["parovani-2026.09"] = {**metodiky["parovani-2026.09"], "overeno": True}  # jen pravidla D-046
     assert publikace.over_vystup(SOUHRN_SUBJEKTU, metodiky, "test") == []
     assert kod in kody(publikace.over_vystup({**SOUHRN_SUBJEKTU, **zmena}, metodiky, "test"))
+
+
+# --- D-049: párování smlouva–zakázka nesmí do výstupu, dokud není ověřené ------------------------
+
+@pytest.mark.parametrize(
+    "vystup",
+    [
+        {"druh": "text", "text": "Případ ke kontrole", "parovani": [{"id_verze": "1", "skore": 0.8}]},
+        {"druh": "text", "text": "Shoda", "metoda": "heuristika_ico_datum_castka_predmet"},
+        {"druh": "text", "text": "Shoda", "metoda": "odkaz_bt151"},
+        {**DOBRY_INDIKATOR, "metodika_verze": "parovani-2026.09"},
+        {**SOUHRN_SUBJEKTU},  # souhrn s podílem heuristické deduplikace > 0 stojí na párování
+    ],
+)
+def test_parovani_neprojde_dokud_neni_overene(vystup):
+    metodiky = publikace.nacti_metodiky()
+    assert publikace.parovani_overeno(metodiky) is False
+    assert "PAROVANI_NEOVERENE" in kody(publikace.over_vystup(vystup, metodiky, "test"))
+
+
+def test_parovani_projde_az_po_overeni_metodiky():
+    metodiky = {**publikace.nacti_metodiky()}
+    metodiky["parovani-2026.09"] = {**metodiky["parovani-2026.09"], "overeno": True}
+    assert publikace.over_vystup({"druh": "text", "text": "Shoda", "metoda": "odkaz_bt151"}, metodiky, "t") == []
+
+
+def test_brana_shodi_build_pri_vystupu_s_parovanim(tmp_path):
+    (tmp_path / "metodika").mkdir()
+    for soubor in ("pilot-2026.09.json", "parovani-2026.09.json"):
+        shutil.copy(KOREN / "metodika" / soubor, tmp_path / "metodika")
+    (tmp_path / "vystupy").mkdir()
+    (tmp_path / "vystupy" / "v.json").write_text(json.dumps([{"druh": "text", "text": "x", "shody": []}]), encoding="utf-8")
+    assert publikace.main([str(tmp_path)]) == 1
+
+
+def test_db_vysledek_bez_zakladu_nebo_srovnavaci_skupiny_nelze_ulozit(db, metodika_id):
+    for sloupce, hodnoty in [("zaklad", "40"), ("srovnavaci_skupina", "'skupina'")]:
+        db.execute("SAVEPOINT s")
+        with pytest.raises(psycopg.errors.CheckViolation):
+            db.execute(f"INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, "
+                       f"metodika_verze_id, {sloupce}) VALUES ('x', '2025-01-01', '2026-01-01', 40, %s, {hodnoty})",
+                       (metodika_id,))
+        db.execute("ROLLBACK TO SAVEPOINT s")

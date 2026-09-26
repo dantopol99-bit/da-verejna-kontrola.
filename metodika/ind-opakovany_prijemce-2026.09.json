@@ -1,0 +1,15 @@
+{
+  "kod": "ind-opakovany-prijemce-2026.09",
+  "popis": "Opakovaný příjemce dotací: počet dotací příjemce v jednom zdroji (stav k datu zdroje)",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 2,
+    "min_zaklad": null,
+    "zdroje": [
+      "dotaceeu_2127",
+      "red"
+    ],
+    "stav": "spocteno"
+  }
+}

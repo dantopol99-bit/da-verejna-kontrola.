@@ -172,7 +172,7 @@ def zapis_ind(ctx: Kontext, mereni: list[tuple[str, dict | None, str]]) -> int:
             continue
         ctx.conn.execute(
             "INSERT INTO ind.indikator_vysledek (indikator_kod, obdobi_od, obdobi_do, pocet_pripadu, zaklad, hodnota, "
-            "metodika_verze_id, text) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            "metodika_verze_id, text, srovnavaci_skupina) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'vzorek pilotu')",
             (kod, ctx.od, ctx.do, podil["jmenovatel"], podil["jmenovatel"], round(podil["podil"], 6), ctx.metodika_id, text),
         )
         vlozeno += 1

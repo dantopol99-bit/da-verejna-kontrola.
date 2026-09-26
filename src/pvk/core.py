@@ -132,3 +132,31 @@ def zajisti_metodiku(conn: psycopg.Connection, definice: Mapping, dokument_sha25
     if existujici:
         data["metodika_verze_id"] = str(existujici["metodika_verze_id"])
     return zapis_verzi(conn, "metodika_verze", data, date.fromisoformat(definice["platnost_od"]))
+
+
+def oprav_entitu(
+    conn: psycopg.Connection,
+    tabulka: str,
+    klic: UUID,
+    verze: list[tuple[Mapping, date, date | None]],
+    duvod: str,
+) -> int:
+    """Oprava formou nové verze (D-048): uzavře všechny aktuální verze entity a vloží opravené verze
+    [(atributy, valid_from, valid_to)] – i se změnou intervalu platnosti. Nic nemaže, důvod je v core.oprava.
+    Stejný stav podruhé nic nezapíše (vrací 0)."""
+    if tabulka not in TABULKY_ENTIT:
+        raise ValueError(f"{tabulka} není entita core")
+    p_verze = [{"data": json.loads(kanonicky_json(dict(data))), "valid_from": od.isoformat(),
+                "valid_to": None if do is None or do == NEKONECNO else do.isoformat()} for data, od, do in verze]
+    row = conn.execute("SELECT core.oprav_entitu(%s::regclass, %s, %s::jsonb, %s) AS n",
+                       (f"core.{tabulka}", klic, json.dumps(p_verze, ensure_ascii=False), duvod)).fetchone()
+    return row["n"] if isinstance(row, Mapping) else row[0]
+
+
+def aktualni_atributy(conn: psycopg.Connection, tabulka: str, klic: UUID) -> dict:
+    """Atributy nejnovější aktuální verze entity (bez technických sloupců a intervalů) – podklad opravy."""
+    row = conn.execute(
+        f"SELECT to_jsonb(t) - ARRAY['verze_id', 'entita_typ', 'recorded_from', 'recorded_to', 'valid_from', "
+        f"'valid_to', '{tabulka}_id'] AS a FROM core.{tabulka} t WHERE {tabulka}_id = %s AND recorded_to = 'infinity' "
+        "ORDER BY valid_from DESC LIMIT 1", (klic,)).fetchone()
+    return dict(row["a"] if isinstance(row, Mapping) else row[0])

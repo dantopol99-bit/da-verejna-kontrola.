@@ -1,0 +1,47 @@
+{
+  "kod": "ind-koncentrace-dodavatele-2026.09",
+  "popis": "Koncentrace dodavatele: podíl největšího dodavatele na objemu zadavatele, klouzavě 36 měsíců",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 5,
+    "min_zaklad": null,
+    "okno_mesicu": 36,
+    "zdroje": [
+      [
+        "vvz",
+        [
+          "vvz",
+          "vvz_detail"
+        ],
+        "vysoutezena"
+      ],
+      [
+        "dotaceeu_2127",
+        [
+          "dotaceeu_2127"
+        ],
+        "smluvni"
+      ]
+    ],
+    "velikostni_skupiny": [
+      [
+        "do 1 mil. Kč",
+        1000000
+      ],
+      [
+        "1–10 mil. Kč",
+        10000000
+      ],
+      [
+        "10–100 mil. Kč",
+        100000000
+      ],
+      [
+        "nad 100 mil. Kč",
+        null
+      ]
+    ],
+    "stav": "spocteno"
+  }
+}

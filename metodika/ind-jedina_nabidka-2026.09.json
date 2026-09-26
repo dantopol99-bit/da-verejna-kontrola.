@@ -1,0 +1,11 @@
+{
+  "kod": "ind-jedina-nabidka-2026.09",
+  "popis": "Jediná nabídka: podíl výsledků (částí) s jedinou nabídkou u zadavatele v oddílu CPV",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 5,
+    "min_zaklad": null,
+    "stav": "spocteno"
+  }
+}

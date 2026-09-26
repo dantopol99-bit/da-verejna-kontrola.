@@ -1,0 +1,13 @@
+{
+  "kod": "ind-zmena-struktury-2026.09",
+  "popis": "Změna struktury v okně: změna v OR dodavatele v okně kolem uzavření smlouvy",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 1,
+    "min_zaklad": null,
+    "okno_dni": 90,
+    "stav": "ceka_na_zdroj",
+    "zdroj": "obchodní rejstřík z kotvy"
+  }
+}
