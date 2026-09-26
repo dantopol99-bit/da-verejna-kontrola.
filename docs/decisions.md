@@ -505,3 +505,44 @@ webu `e-sbirka.gov.cz/sbr-cache/dokumenty-sbirky/…`, stažení přes `Stahovac
 § 62) jsou ve všech zněních beze změny. Oprava D-042: lhůty užšího řízení jsou v § 59 (ne § 58), JŘSU v § 62.
 Limit je v `core.limit` jedna entita na kód s verzemi platnosti (valid time); entity dřívějšího klíčování
 (kód + datum) se ukončily podle D-044.
+
+## D-048 Oprava formou nové verze (včetně intervalu platnosti)
+
+**Kontext.** `core.zapis_verzi()` zachová zbytek starého intervalu před novým začátkem platnosti, takže chybný
+začátek (tok s datem 0202-04-23, částky s roky 0202 a 0205) zůstal aktuální. Evidence náhrad u 11 limitů
+(`core.ukonceni_entity.nahrazeno`) byla chybná a evidence je pouze INSERT.
+**Rozhodnutí.** `core.oprav_entitu(tabulka, klíč, verze, důvod)` (migrace 0012, Python `pvk.core.oprav_entitu`):
+uzavře všechny aktuální verze entity a vloží opravené verze s libovolnými intervaly; původní i opravený stav a
+důvod zapíše do `core.oprava` (pouze INSERT). Stejný stav podruhé nic nezapíše. Opravu údaje v evidenci, která je
+pouze INSERT, zapisuje `core.oprav_zaznam()` do `core.oprava`; pohled `core.ukonceni_entity_opravene` ji uplatní.
+Nic se nemaže, historie („jak jsme to věděli v čase T“) zůstává.
+**Provedeno 26. 9. 2026:** tok `b4b993b4…` a částky `953e2606…`, `b3e4d917…` mají jedinou aktuální verzi od
+náhradního data (žádná aktuální verze před rokem 1990); 11 záznamů evidence náhrad limitů opraveno (každý limit
+nahrazen entitou téhož kódu).
+
+## D-049 Párování smlouva–zakázka do výstupů jen po ověření
+
+**Rozhodnutí.** Dokud váhy a práh párování (D-045) nejsou ověřené na registru smluv, párování nesmí vstoupit do
+žádného výstupu. `metodika/parovani-2026.09.json` má `"overeno": false`; publikační brána odmítne výstup se shodou,
+metodou nebo metodikou párování i souhrn s nenulovým podílem heuristické deduplikace (`PAROVANI_NEOVERENE`),
+testy v `tests/test_publikacni_podminky.py`. Ověření = měření na vzorku registru smluv (oficiální zdroj) s ručně
+potvrzenými shodami; teprve pak nová verze metodiky s `"overeno": true`.
+**Stav 26. 9. 2026:** neověřeno (registr smluv z cloudu nedostupný, ze zrcadla jen 14 smluv vývojového vzorku).
+
+## D-050 Indikátory v1: povinné údaje, minimální základ, čekající na zdroj
+
+**Rozhodnutí.** Každý výsledek v `ind.indikator_vysledek` nese období, počet případů, základ, srovnávací skupinu
+(nový sloupec, pro nové řádky povinný spolu se základem – migrace 0012) a verzi metodiky
+(`metodika/ind-<kód>-2026.09.json`, popis `metodika/indikatory-2026.09.md`); pod `min_pocet_pripadu` výsledek
+nevznikne. Spočítané: koncentrace dodavatele, jediná nabídka, zkrácené lhůty, opakovaný příjemce, nový subjekt.
+Čekající na zdroj (`"stav": "ceka_na_zdroj"`, funkce a testy na vzorových datech, na skutečných datech se
+nepočítají, brána výsledky odmítne – `INDIKATOR_CEKA_NA_ZDROJ`): dělení pod limit (registr smluv), dodavatel ve
+sledovaném pásmu kotvy, změna struktury v okně (OR z kotvy). Závislost na veřejných penězích se ve v1 nevydává (D-027).
+Nový subjekt: datum vzniku z kotvy (ARES), přeměna podle „ostatních skutečností“ v záznamu OR (fúze, rozdělení,
+odštěpení, nástupnictví, změna právní formy) – subjekt vzniklý přeměnou nový není, bez záznamu OR se nehodnotí.
+
+## D-051 Prahy indikátorů: jen návrh
+
+**Rozhodnutí.** `docs/prahy_navrh.md` obsahuje rozložení hodnot ve srovnávacích skupinách a návrh prahů
+(p90, u počtů p95, skupinově jen při n ≥ 30). Prahy **nejsou schválené**; schvaluje je vlastník metodiky
+a zapíší se novou verzí metodiky před dalším měřením (D-020, D-029).

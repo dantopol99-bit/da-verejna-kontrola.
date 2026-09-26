@@ -44,6 +44,9 @@ def test_souhrn_s_podilem_heuristiky_a_rozpetim(db_vlastni):
     assert s["hodnota"] == "100.00" and s["pocet_castek"] == 2
     assert s["pokryti"] == {"toku": 1, "s_castkou_typu": 1, "s_ico_obou_stran": 1}
     metodiky = publikace.nacti_metodiky()
+    # podíl heuristiky > 0 stojí na párování: dokud není ověřené, souhrn neprojde (D-049)
+    assert "PAROVANI_NEOVERENE" in {p.kod for p in publikace.over_vystup(s, metodiky, "test")}
+    metodiky["parovani-2026.09"] = {**metodiky["parovani-2026.09"], "overeno": True}
     assert publikace.over_vystup(s, metodiky, "test") == []
     # souhrn bez podílu heuristiky neprojde
     bez_podilu = {k: v for k, v in s.items() if k != "podil_heuristicke_deduplikace"}
@@ -59,4 +62,6 @@ def test_souhrn_s_podilem_heuristiky_a_rozpetim(db_vlastni):
 def test_souhrn_pod_prahem_bez_rozpeti():
     s = {"druh": "souhrn", "typ": "smluvni", "mena": "CZK", "dph_rezim": "bez_dph", "perioda": "celkem",
          "podil_heuristicke_deduplikace": 0.01, "metodika_verze": "souhrny-2026.09"}
-    assert publikace.over_vystup(s, publikace.nacti_metodiky(), "test") == []
+    metodiky = publikace.nacti_metodiky()
+    metodiky["parovani-2026.09"] = {**metodiky["parovani-2026.09"], "overeno": True}  # jen pravidla D-046
+    assert publikace.over_vystup(s, metodiky, "test") == []

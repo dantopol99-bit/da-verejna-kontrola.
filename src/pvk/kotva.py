@@ -10,6 +10,7 @@ Později se nahradí implementací DbKotva (dotaz do databáze kotvy); rozhraní
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -127,6 +128,25 @@ class AresKotva:
             vysledek = self._z_ares(r.json())
         self._cache[ico_n] = vysledek
         return vysledek
+
+    RE_PREMENA = re.compile(r"přeměn|fúz|rozdělen|odštěpen|nástupnick|zanikající|sloučen|splynut|změn\w* právní form",
+                            re.IGNORECASE)
+
+    def vznik_premenou(self, ico: str) -> bool | None:
+        """Vznikl subjekt přeměnou (fúze, rozdělení, změna právní formy …)? Podle textů „ostatní skutečnosti“
+        v záznamu obchodního rejstříku (ARES VR). None = záznam OR není dostupný. Nic se neukládá, osobní
+        údaje ze záznamu (statutáři, společníci) se nečtou."""
+        ico_n = normalizuj_ico(ico)
+        if ico_n is None or not ico_platne(ico_n):
+            return None
+        self._pockej()
+        r = self.session.get(f"{ARES_URL}/ekonomicke-subjekty-vr/{ico_n}", timeout=self.timeout)
+        if r.status_code in (400, 404):
+            return None
+        r.raise_for_status()
+        zaznamy = r.json().get("zaznamy") or []
+        texty = [str(x) for z in zaznamy for x in (z.get("ostatniSkutecnosti") or [])]
+        return any(self.RE_PREMENA.search(t) for t in texty)
 
     DAVKA = 100  # IČO v jednom dotazu vyhledat (ARES vrací nejvýš 100 subjektů na stránku)
 

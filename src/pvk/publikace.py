@@ -11,6 +11,8 @@ Podmínky nepublikování (každá má kód porušení):
   DOTACE_BEZ_STAVU_K_DATU  (dotační údaj musí uvádět stav dat zdroje k datu, D-039)
   VYVOJOVY_VZOREK  (vývojový vzorek, např. zrcadlo registru smluv, není zdroj publikovaných dat, D-040)
   SOUHRN_BEZ_ROZPETI  (podíl heuristiky nad zveřejněným prahem metodiky -> souhrn musí uvádět rozpětí, D-046)
+  PAROVANI_NEOVERENE  (párování smlouva–zakázka nesmí do výstupu, dokud metodika párování není ověřena, D-049)
+  INDIKATOR_CEKA_NA_ZDROJ  (indikátor, jehož metodika čeká na zdroj, se nepublikuje, D-050)
 
 Brána se spouští jako `python -m pvk.publikace` (make gate / make pilot) a v testech
 (tests/test_publikacni_podminky.py); jakékoli porušení ve výstupech shodí build.
@@ -43,7 +45,8 @@ HODNOTICI_VZORY: tuple[tuple[re.Pattern[str], str], ...] = (
 
 # Kde leží výstupy, které se kontrolují (relativně ke kořeni repozitáře).
 VYSTUPNI_ADRESARE = ("vystupy",)
-VYSTUPNI_SOUBORY = ("docs/pilot_report.md", "docs/pilot_vyjimky.csv", "docs/pilot_vyjimky_kategorie.csv")
+VYSTUPNI_SOUBORY = ("docs/pilot_report.md", "docs/pilot_vyjimky.csv", "docs/pilot_vyjimky_kategorie.csv",
+                    "docs/blok4.md", "docs/prahy_navrh.md")
 ADRESAR_METODIK = "metodika"
 
 
@@ -97,6 +100,8 @@ def over_indikator(v: Mapping, metodika: Mapping | None, kde: str = "") -> list[
                 kde,
             )
         )
+    if metodika is not None and metodika.get("stav") == "ceka_na_zdroj":
+        p.append(Poruseni("INDIKATOR_CEKA_NA_ZDROJ", "indikátor čeká na zdroj dat, výsledky se nepublikují", kde))
     if metodika is not None and v.get("pocet_pripadu") is not None:
         minimum = metodika.get("min_pocet_pripadu")
         if minimum is None:
@@ -154,6 +159,30 @@ def over_puvod(v: Mapping, kde: str = "") -> list[Poruseni]:
     """D-040: vývojový vzorek (zrcadlo registru smluv) není zdroj publikovaných dat."""
     if v.get("vyvojovy_vzorek") or str(v.get("zdroj") or "") in ZDROJE_JEN_VYVOJOVE:
         return [Poruseni("VYVOJOVY_VZOREK", "výstup stojí na vývojovém vzorku, ne na zdroji pro publikaci", kde)]
+    return []
+
+
+METODY_PAROVANI = frozenset({"odkaz_bt151", "ev_cislo_v_rs", "heuristika_ico_datum_castka_predmet"})
+KLICE_PAROVANI = frozenset({"parovani", "shody", "shoda_smlouva_zakazka", "stav_vazby"})
+
+
+def parovani_overeno(metodiky: Mapping[str, Mapping]) -> bool:
+    """Párování smí do výstupu jen tehdy, když ho všechny verze metodiky párování uvádějí jako ověřené."""
+    verze = [p for kod, p in metodiky.items() if kod.startswith("parovani-")]
+    return bool(verze) and all(p.get("overeno") is True for p in verze)
+
+
+def over_parovani(v: Mapping, metodiky: Mapping[str, Mapping], kde: str = "") -> list[Poruseni]:
+    """D-049: výstup s párováním smlouva–zakázka (shoda, metoda párování, metodika párování, souhrn stojící na
+    heuristické deduplikaci) se nepublikuje, dokud váhy a práh nejsou ověřené na registru smluv."""
+    if parovani_overeno(metodiky):
+        return []
+    pouziva = (bool(KLICE_PAROVANI & set(v)) or str(v.get("metoda") or "") in METODY_PAROVANI
+               or str(v.get("metodika_verze") or "").startswith("parovani-")
+               or (v.get("druh") == "souhrn" and float(v.get("podil_heuristicke_deduplikace") or 0) > 0))
+    if pouziva:
+        return [Poruseni("PAROVANI_NEOVERENE", "výstup stojí na párování smlouva–zakázka, jehož váhy a práh nejsou "
+                         "ověřené na registru smluv", kde)]
     return []
 
 
@@ -239,7 +268,7 @@ def nacti_metodiky(koren: Path = KOREN) -> dict[str, dict]:
 
 def over_vystup(vystup: Mapping, metodiky: Mapping[str, Mapping], kde: str) -> list[Poruseni]:
     druh = vystup.get("druh")
-    puvod = over_puvod(vystup, kde)
+    puvod = over_puvod(vystup, kde) + over_parovani(vystup, metodiky, kde)
     if druh in ("indikator", "souhrn", "castka"):
         puvod += over_stav_k_datu(vystup, kde)
     if druh == "indikator":

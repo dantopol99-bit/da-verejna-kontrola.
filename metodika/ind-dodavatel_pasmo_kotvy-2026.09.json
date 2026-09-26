@@ -1,0 +1,12 @@
+{
+  "kod": "ind-dodavatel-pasmo-kotvy-2026.09",
+  "popis": "Dodavatel ve sledovaném pásmu kotvy: podíl objemu zadavatele u takových dodavatelů",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/indikatory-2026.09.md",
+  "parametry": {
+    "min_pocet_pripadu": 5,
+    "min_zaklad": null,
+    "stav": "ceka_na_zdroj",
+    "zdroj": "kotva (Firemní databáze)"
+  }
+}

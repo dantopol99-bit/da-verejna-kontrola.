@@ -184,3 +184,26 @@ def test_tok_zdroj_stav_a_skore(db):
 def test_zapis_verzi_jen_pro_entity_core(db):
     with pytest.raises(psycopg.Error):
         db.execute("SELECT core.zapis_verzi('raw.zaznam'::regclass, '{}'::jsonb, '2020-01-01')")
+
+
+def test_oprava_novou_verzi_vcetne_intervalu(db):
+    """D-048: oprava uzavře všechny aktuální verze (i zbytek starého intervalu) a vloží opravenou verzi."""
+    from pvk.core import aktualni_atributy, oprav_entitu
+
+    tok = zapis_verzi(db, "tok", {"druh": "dotace", "subjekt_neurcen_duvod": "test"}, date(202, 4, 23))
+    db.commit()
+    zapis_verzi(db, "tok", {"tok_id": str(tok), "druh": "dotace", "subjekt_neurcen_duvod": "test"}, date(2026, 6, 24))
+    db.commit()
+    assert db.execute("SELECT count(*) AS n FROM core.tok_aktualni WHERE tok_id = %s", (tok,)).fetchone()["n"] == 2
+    n = oprav_entitu(db, "tok", tok, [(aktualni_atributy(db, "tok", tok), date(2026, 6, 24), None)], "chybné datum ve zdroji")
+    db.commit()
+    assert n == 1
+    aktualni = db.execute("SELECT valid_from FROM core.tok_aktualni WHERE tok_id = %s", (tok,)).fetchall()
+    assert [r["valid_from"] for r in aktualni] == [date(2026, 6, 24)]
+    assert db.execute("SELECT count(*) AS n FROM core.tok WHERE tok_id = %s", (tok,)).fetchone()["n"] == 4  # nic nesmazáno
+    o = db.execute("SELECT duvod, jsonb_array_length(puvodni) AS p FROM core.oprava WHERE entita_id = %s", (tok,)).fetchone()
+    assert (o["duvod"], o["p"]) == ("chybné datum ve zdroji", 2)
+    # stejný stav podruhé nic nezapíše; bez důvodu oprava neprojde
+    assert oprav_entitu(db, "tok", tok, [(aktualni_atributy(db, "tok", tok), date(2026, 6, 24), None)], "znovu") == 0
+    with pytest.raises(psycopg.Error):
+        oprav_entitu(db, "tok", tok, [(aktualni_atributy(db, "tok", tok), date(2026, 1, 1), None)], "")
