@@ -126,7 +126,8 @@ def _vvz_data():
         "id": f"uuid-{i}", "variableId": f"F2026-00000{i}", "dataHash": f"h{i}",
         "owner": {"name": "Jana Nováková", "email": "jana@example.invalid"},
         "createdBy": {"name": "Jana Nováková"}, "updatedBy": {"name": "most"},
-        "data": {"zadavatele": [{"ico": "00064581", "nazev": "Obec"}], "zdrojPodani": {"typ": "WEB", "uzivatelVvzLogin": "jnovak"}},
+        "data": {"zadavatele": [{"ico": "00064581", "nazev": "Obec"}], "zdrojPodani": {"typ": "WEB", "uzivatelVvzLogin": "jnovak"},
+                 "dodavatele": [{"ico": "45023522", "nazev": "Stavby s.r.o."}, {"ico": None, "nazev": "Jan Novák"}]},
     }
     api = f"{vvz.API}/api/submissions/search"
     return {
@@ -154,7 +155,9 @@ def test_vvz_pocet_ze_zdroje_puvod_a_opakovany_beh_bez_duplicit(conn, tmp_path):
     assert conn.execute("SELECT beh_id FROM raw.stazeni WHERE id = %s", (z["stazeni_id"],)).fetchone()["beh_id"] == beh1
     # osoby zadávající formulář se neukládají
     assert "owner" not in z["obsah"] and "uzivatelVvzLogin" not in z["obsah"]["data"]["zdrojPodani"]
-    assert {"owner", "createdBy", "updatedBy", "data.zdrojPodani.uzivatelVvzLogin"} <= set(z["redigovano"])
+    assert set(z["redigovano"]) == {"owner", "createdBy", "updatedBy", "data.zdrojPodani.uzivatelVvzLogin",
+                                    "data.dodavatele[1].nazev"}  # dodavatel bez IČO bez názvu (D-035)
+    assert z["obsah"]["data"]["dodavatele"] == [{"ico": "45023522", "nazev": "Stavby s.r.o."}, {"ico": None}]
 
 
 def test_registr_smluv_z_dennich_dumpu(conn, tmp_path):
@@ -226,6 +229,7 @@ def _red_data(tmp_path):
     dotace = [
         {"iriDotace": f"{iri}dotace/1", "iriPrijemce": f"{iri}prijemce/1", "podpisDatum": "2026-02-10", "datumExportu": "2026-02-21"},
         {"iriDotace": f"{iri}dotace/2", "iriPrijemce": f"{iri}prijemce/2", "podpisDatum": "2025-06-01", "datumExportu": "2026-02-21"},
+        {"iriDotace": f"{iri}dotace/3", "iriPrijemce": f"{iri}prijemce/2", "podpisDatum": "2030-06-17", "datumExportu": "2026-02-21"},
     ]
     prijemci = [
         {"iriPrijemce": f"{iri}prijemce/1", "ico": "", "jmeno": "Jan", "prijmeni": "Novák", "rokNarozeni": "1970"},
@@ -247,13 +251,16 @@ def test_red_okno_podle_exportu_prijemci_a_rozhodnuti(conn, tmp_path):
     s = FalesnyStahovac(conn, tmp_path, _red_data(tmp_path))
     beh_id, stav = spust(conn, s, sberace.SBERACE["red"], OD, DO)
     b = _beh(conn, beh_id)
-    # export 21. 2. 2026 je starší než období -> měsíční okno končící exportem (D-022)
-    assert stav == "uspech" and b["pocet_zaznamu"] == 3 and "okno_podle_exportu" in b["poznamka"]
+    # data končí před obdobím -> měsíční okno končící posledním podpisem do data exportu (D-022);
+    # podpis po datu exportu je chyba dat a konec okna neurčuje
+    assert stav == "uspech" and b["pocet_zaznamu"] == 3 and '"posledni_podpis": "2026-02-10"' in b["poznamka"]
     z = {r["id_ve_zdroji"].rsplit("/", 2)[-2]: r for r in _zaznamy(conn, "red")}
     assert set(z) == {"dotace", "prijemce", "rozhodnuti"}
     assert "jmeno" not in z["prijemce"]["obsah"] and set(z["prijemce"]["redigovano"]) == {"jmeno", "prijmeni", "rokNarozeni"}
-    spust(conn, s, sberace.SBERACE["red"], OD, DO)
-    assert len(_zaznamy(conn, "red")) == 3
+    pocet_stazeni = len(s.dotazy)
+    beh2, _ = spust(conn, s, sberace.SBERACE["red"], OD, DO)
+    assert len(_zaznamy(conn, "red")) == 3 and _beh(conn, beh2)["pocet_novych"] == 0
+    assert len(s.dotazy) - pocet_stazeni == 7  # test dostupnosti + 3× katalog + 3× soubor
 
 
 def test_cedr_soubory_podle_konvence(conn, tmp_path):

@@ -106,18 +106,18 @@ Legenda dostupnosti z prostředí pilotu: ✅ dostupné · ⛔ nedostupné (spoj
 
 ## 8. Sběr do raw (blok 2) – dostupnost a ověřovací běh
 
-Dostupnost ověřena **26. 9. 2026 12:27–12:29 SELČ jedním pokusem bez opakování** přímo v ověřovacím
+Dostupnost ověřena **26. 9. 2026 12:27–12:38 SELČ jedním pokusem bez opakování** přímo v ověřovacím
 běhu `make sber` (pokus je v `raw.stazeni` s `beh_id`, výsledek v `raw.beh_prehled`). Blokované zdroje
-odmítají spojení z cloudových adres (server ukončí TLS spojení bez odpovědi); **stahovače poběží beze
+odmítají spojení z cloudových adres (server spojení ukončí bez odpovědi, u CEDR se nenaváže vůbec); **stahovače poběží beze
 změny kódu z české sítě** – stačí `make sber` (nebo `make sber ZDROJE="registr_smluv nen isvz cedr"`).
 
 | Zdroj (`raw.zdroj`) | Test dostupnosti | Výsledek z cloudu | Stahovač (`pvk.sber.sberace`) |
 |---|---|---|---|
-| `registr_smluv` | `https://data.smlouvy.gov.cz/index.xml` | ⛔ `ConnectionError … Connection aborted` | denní dumpy `dump_RRRR_MM_DD.xml` za období, záznam = `<zaznam>` (ID = idVerze) |
-| `nen` | `https://nen.nipez.cz/profily-zadavatelu-platne` | ⛔ `ConnectionError … Connection aborted` | seznam platných profilů → `/profil/{kód}/XMLdataVZ?od=…&do=…`, záznam = `<zakazka>` |
-| `isvz` | `https://isvz.nipez.cz/opendata` | ⛔ `ConnectionError … Connection aborted` | měsíční soubory otevřených dat RVZ dohledané na stránce, záznam = položka souboru |
+| `registr_smluv` | `https://data.smlouvy.gov.cz/index.xml` | ⛔ `ConnectionError … Connection reset by peer` | denní dumpy `dump_RRRR_MM_DD.xml` za období, záznam = `<zaznam>` (ID = idVerze) |
+| `nen` | `https://nen.nipez.cz/profily-zadavatelu-platne` | ⛔ `ConnectionError … Connection reset by peer` | seznam platných profilů → `/profil/{kód}/XMLdataVZ?od=…&do=…`, záznam = `<zakazka>` |
+| `isvz` | `https://isvz.nipez.cz/opendata` | ⛔ `ConnectionError … Connection reset by peer` | měsíční soubory otevřených dat RVZ dohledané na stránce, záznam = položka souboru |
 | `vvz` | `https://api.vvz.nipez.cz/api/submissions/search` | ✅ | formuláře uveřejněné v období (250 na stránku), záznam = formulář (ID = evidenční číslo `F…`) |
-| `cedr` | `https://cedropendata.mfcr.cz/c3lod/cedr/` | ⛔ (viz běh) | `Dotace`, `PrijemcePomoci`, `Rozhodnuti` (CSV.gz); historická data, nástupce IS ReD |
+| `cedr` | `https://cedropendata.mfcr.cz/c3lod/cedr/` | ⛔ `ProxyError … 502 Bad Gateway` (spojení se serverem nevzniklo) | `Dotace`, `PrijemcePomoci`, `Rozhodnuti` (CSV.gz); historická data, nástupce IS ReD |
 | `red` | `https://red.fs.gov.cz/opendata/api/3/action/package_show?id=dotace` | ✅ | `dotace` podepsané v okně + jejich `prijemce-pomoci` a `rozhodnuti` (CSV.gz z katalogu CKAN) |
 | `dotaceeu_2127` | stránka seznamu operací na dotaceeu.cz | ✅ | nejnovější měsíční XLSX „Seznam operací 21+“, záznam = řádek (projekt × zakázka) |
 
@@ -125,4 +125,39 @@ SZIF je z v1 vyřazen (D-028), zrcadlo Hlídače státu se ve sběru nepoužív�
 
 ### Ověřovací běh 26. 9. 2026 (období 26. 8. – 25. 9. 2026)
 
-VYSLEDKY_BEHU
+| Běh | Zdroj | Stav | Záznamů zpracováno | Nově v raw | Údaj zdroje | Trvání |
+|---|---|---|---|---|---|---|
+| 1 | `registr_smluv` | preskoceno | 0 | 0 | – | 12 s |
+| 2 | `vvz` | uspech | 5 364 | 5 364 | 5 364 | 29 s |
+| 3 | `isvz` | preskoceno | 0 | 0 | – | 12 s |
+| 4 | `nen` | preskoceno | 0 | 0 | – | 12 s |
+| 5 | `red` | uspech | 0 | 0 | – | 536 s |
+| 6 | `cedr` | preskoceno | 0 | 0 | – | 0 s |
+| 7 | `dotaceeu_2127` | uspech | 48 692 | 48 692 | – | 64 s |
+| 8 | `red` | uspech | 68 | 68 | – | 60 s |
+
+Opakovaný běh (stejné období, jen dostupné zdroje) – kontrola, že nevznikají duplicity:
+
+| Běh | Zdroj | Stav | Záznamů zpracováno | Nově v raw | Údaj zdroje | Trvání |
+|---|---|---|---|---|---|---|
+| 9 | `vvz` | uspech | 5 364 | 0 | 5 364 | 27 s |
+| 10 | `dotaceeu_2127` | uspech | 48 692 | 0 | – | 57 s |
+
+**Srovnání s údajem zdroje**
+
+* **VVZ** – zdroj uvádí počet v hlavičce `X-Total-Count`: 5 364; uloženo 5 364 formulářů (shoda).
+* **Seznam operací 21+** – zdroj počet neuvádí; soubor „Generováno dne 01.09.2026“ má 48 692 datových
+  řádků (projekt × zakázka v projektu), uloženo 48 692 záznamů s 48 692 různými ID (pilot: ≈ 48 700).
+  U 1 005 řádků příjemců – fyzických osob se neuložil název ani PSČ.
+* **IS ReD** – zdroj počet neuvádí. Export k 21. 2. 2026 (soubory upraveny 24. 3. 2026), poslední datum
+  podpisu nejpozději k exportu je 16. 12. 2025 → okno 16. 11. – 16. 12. 2025 (D-022): 23 dotací,
+  22 příjemců (u 2 fyzických osob bez jména a roku narození) a 23 rozhodnutí. **Nález kvality dat:**
+  ReD se doplňuje se zpožděním – podpisů po měsících: 1. pol. 2025 1 300–2 800 měsíčně, 8/2025 746,
+  9/2025 873, 10/2025 286, 11/2025 77, 12/2025 4; poslední měsíc dat je proto neúplný. Běh 5 použil
+  chybně okno končící datem exportu (0 záznamů); opraveno, platný je běh 8 (soubory se znovu nestahovaly,
+  katalog je od stažení neuvádí jako změněné).
+* **Registr smluv, NEN, ISVZ, CEDR** – jeden pokus, spojení odmítnuto; běh ve stavu `preskoceno`
+  s chybou v evidenci. Z české sítě: `make sber ZDROJE="registr_smluv nen isvz cedr"`.
+
+Opakovaný běh VVZ a seznamu operací za stejné období nevložil žádný nový záznam (běhy 9 a 10).
+Úplný obsah formulářů eForms (částky, dodavatelé) sběr zatím nestahuje (D-034).

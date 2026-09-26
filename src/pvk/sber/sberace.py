@@ -19,7 +19,7 @@ import re
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from html import unescape
 from pathlib import Path
 from urllib.parse import urljoin
@@ -137,6 +137,7 @@ def sber_registr_smluv(beh: Beh) -> None:
 
 VVZ_LIMIT = 250  # API vrací nejvýš 250 položek na stránku
 VVZ_VZDY = frozenset({"owner", "createdBy", "updatedBy", "uzivatelVvzLogin"})  # osoby zadávající formulář
+VVZ_STRANY = frozenset({"zadavatele", "dodavatele"})
 
 
 def sber_vvz(beh: Beh) -> None:
@@ -166,7 +167,7 @@ def sber_vvz(beh: Beh) -> None:
             posledni = int(hl.get("x-last-page") or 1)
         polozky = json.loads(odp.obsah())
         for p in polozky:
-            ulozeny, vynechano = rediguj(p, vzdy=VVZ_VZDY)
+            ulozeny, vynechano = rediguj(p, VVZ_STRANY, VVZ_VZDY)
             beh.zaznam(p.get("variableId") or p["id"], odp.url, odp, p, "json", ulozeny_obsah=ulozeny, redigovat=vynechano)
         if not polozky:
             break
@@ -326,27 +327,45 @@ def _radky_csv(cesta: Path) -> Iterator[dict]:
         yield from csv.DictReader(f)
 
 
-def sber_registru_dotaci(beh: Beh, urls: dict[str, str], sloupce: dict[str, str], osobni: tuple[str, ...]) -> None:
+def sber_registru_dotaci(
+    beh: Beh,
+    urls: dict[str, str],
+    sloupce: dict[str, str],
+    osobni: tuple[str, ...],
+    zmeneno: dict[str, datetime] | None = None,
+) -> None:
     """Dotace podepsané v období + jejich příjemci a rozhodnutí (částky).
 
     `urls`: dotace / prijemce / rozhodnuti -> URL souboru; `sloupce`: id_dotace, id_prijemce,
-    id_rozhodnuti, datum (datum podpisu). Když je export starší než období (IS ReD se publikuje
-    se zpožděním), použije se stejně dlouhé okno končící datem exportu (D-022) a zapíše se do běhu."""
+    id_rozhodnuti, datum (datum podpisu); `zmeneno`: čas poslední změny souboru podle katalogu – dříve
+    stažený soubor se znovu nestahuje, pokud se od té doby nezměnil. Když data končí před začátkem období
+    (IS ReD se publikuje se zpožděním), použije se stejně dlouhé okno končící posledním datem podpisu
+    nejpozději k datu exportu (D-022); skutečné okno se zapíše do evidence běhu."""
     s = sloupce
 
     def stahni(tabulka: str):
-        odp = beh.stahovac.ziskej(beh.zdroj, urls[tabulka], obnov=True, timeout=(20, 3600))
+        zmena = (zmeneno or {}).get(tabulka)
+        odp = beh.stahovac.ziskej(beh.zdroj, urls[tabulka], timeout=(20, 3600), obnov=zmena is None)
+        if odp.z_cache and zmena is not None and odp.cas_stazeni <= zmena:
+            odp = beh.stahovac.ziskej(beh.zdroj, urls[tabulka], timeout=(20, 3600), obnov=True)
         if odp.status != 200:
             raise RuntimeError(f"{urls[tabulka]}: {odp.status or odp.chyba}")
+        beh.vysledek.parametry[f"{tabulka}_stazeni"] = {"id": odp.stazeni_id, "sha256": odp.sha256,
+                                                        "drive_stazeny": odp.z_cache}
         return odp
 
     dotace = stahni("dotace")
-    od, do = beh.od, beh.do
     export = (next(_radky_csv(dotace.cesta), {}).get("datumExportu") or "")[:10]
-    if export and date.fromisoformat(export) < od:
-        do = date.fromisoformat(export) + timedelta(days=1)
+    posledni = max(
+        (p for r in _radky_csv(dotace.cesta) if (p := (r.get(s["datum"]) or "")[:10]) and (not export or p <= export)),
+        default="",
+    )
+    od, do = beh.od, beh.do
+    if posledni and date.fromisoformat(posledni) < od:
+        do = date.fromisoformat(posledni) + timedelta(days=1)
         od = do - (beh.do - beh.od)
-        beh.vysledek.parametry["okno_podle_exportu"] = {"datum_exportu": export, "od": od, "do": do}
+        beh.vysledek.parametry["okno_podle_dat"] = {"datum_exportu": export, "posledni_podpis": posledni,
+                                                   "od": od, "do": do}
     id_dotaci, id_prijemcu = set(), set()
     for r in _radky_csv(dotace.cesta):
         podpis = (r.get(s["datum"]) or "")[:10]
@@ -363,14 +382,14 @@ def sber_registru_dotaci(beh: Beh, urls: dict[str, str], sloupce: dict[str, str]
     for r in _radky_csv(rozhodnuti.cesta):
         if r.get(s["id_dotace"]) in id_dotaci:
             beh.zaznam(r.get(s["id_rozhodnuti"]) or id_zaznamu(r), rozhodnuti.url, rozhodnuti, r, "csv")
-    beh.vysledek.parametry["dotaci"] = len(id_dotaci)
+    beh.vysledek.parametry.update({"dotaci": len(id_dotaci), "prijemcu": len(id_prijemcu)})
 
 
 RED_BALICKY = {"dotace": "dotace", "prijemce": "prijemce-pomoci", "rozhodnuti": "rozhodnuti"}
 
 
 def sber_red(beh: Beh) -> None:
-    urls = {}
+    urls, zmeneno = {}, {}
     for tabulka, balicek in RED_BALICKY.items():
         odp = beh.stahovac.ziskej(dotace_zdroje.RED_ZDROJ, dotace_zdroje.RED_CKAN, params={"id": balicek}, obnov=True)
         if odp.status != 200:
@@ -379,10 +398,13 @@ def sber_red(beh: Beh) -> None:
         if not zdroje:
             raise RuntimeError(f"ReD: balíček {balicek} nemá CSV")
         urls[tabulka] = zdroje[0]["url"].replace("://red.financnisprava.cz/", "://red.fs.gov.cz/")
-        beh.vysledek.parametry[f"{tabulka}_upraveno"] = zdroje[0].get("last_modified")
+        upraveno = zdroje[0].get("last_modified") or zdroje[0].get("metadata_modified")
+        beh.vysledek.parametry[f"{tabulka}_upraveno"] = upraveno
+        # CKAN uvádí čas v UTC bez časové zóny; bez údaje se soubor stáhne vždy znovu
+        zmeneno[tabulka] = datetime.fromisoformat(upraveno).replace(tzinfo=UTC) if upraveno else None
     sloupce = {"id_dotace": "iriDotace", "id_prijemce": "iriPrijemce", "id_rozhodnuti": "iriRozhodnuti",
                "datum": "podpisDatum"}
-    sber_registru_dotaci(beh, urls, sloupce, dotace_zdroje.RED_OSOBNI_POLE)
+    sber_registru_dotaci(beh, urls, sloupce, dotace_zdroje.RED_OSOBNI_POLE, zmeneno)
 
 
 CEDR_ZDROJ = "cedr"

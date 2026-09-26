@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 from datetime import date
+from zoneinfo import ZoneInfo
 
 from pvk.config import nastaveni
 from pvk.db import pripoj
@@ -56,25 +57,30 @@ def sber(zdroje: list[str], od: date, do: date) -> int:
     return 1 if any(stav == "chyba" for _z, _b, stav in stavy) else 0
 
 
+CAS = ZoneInfo("Europe/Prague")
+
+
 def _bunka(v, sirka: int) -> str:
-    text = "" if v is None else (f"{v:%Y-%m-%d %H:%M:%S}" if hasattr(v, "hour") else str(v))
+    text = "" if v is None else (f"{v.astimezone(CAS):%Y-%m-%d %H:%M:%S}" if hasattr(v, "hour") else str(v))
     return (text[: sirka - 1] + "…") if len(text) > sirka else text.ljust(sirka)
 
 
 def stav(pocet: int) -> int:
     nast = nastaveni()
-    sloupce = [("id", 6), ("zdroj", 15), ("zacatek", 20), ("konec", 20), ("stav", 12), ("obdobi_od", 11),
-               ("obdobi_do", 11), ("pocet_zaznamu", 9), ("pocet_novych", 9), ("pocet_ve_zdroji", 9), ("pocet_chyb", 6)]
+    sloupce = [("id", "běh", 6), ("zdroj", "zdroj", 15), ("zacatek", "začátek (čas ČR)", 20), ("konec", "konec", 20),
+               ("stav", "stav", 12), ("obdobi_od", "období od", 11), ("obdobi_do", "do", 11),
+               ("pocet_zaznamu", "záznamů", 9), ("pocet_novych", "nových", 9), ("pocet_ve_zdroji", "ve zdroji", 10),
+               ("pocet_chyb", "chyb", 5)]
     with pripoj(nast.database_url) as conn:
         posledni = conn.execute(
             "SELECT DISTINCT ON (zdroj) * FROM raw.beh_prehled ORDER BY zdroj, id DESC"
         ).fetchall()
         historie = conn.execute("SELECT * FROM raw.beh_prehled ORDER BY id DESC LIMIT %s", (pocet,)).fetchall()
-    zahlavi = "".join(_bunka(n.replace("pocet_", "n_"), s) for n, s in sloupce)
+    zahlavi = "".join(_bunka(popisek, sirka) for _n, popisek, sirka in sloupce)
     for titulek, radky in (("Poslední běh každého zdroje", posledni), (f"Posledních {pocet} běhů", historie)):
         print(f"\n{titulek}\n{zahlavi}\n{'-' * len(zahlavi)}")
         for r in radky:
-            print("".join(_bunka(r[n], s) for n, s in sloupce))
+            print("".join(_bunka(r[n], sirka) for n, _p, sirka in sloupce))
             if titulek.startswith("Poslední běh") and (r["chyby"] or r["poznamka"]):
                 for chyba in (r["chyby"] or [])[:3]:
                     print(f"      chyba: {chyba[:160]}")

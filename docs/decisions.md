@@ -323,8 +323,10 @@ změna záznamu ve zdroji = nový řádek. Blokované zdroje poběží stejným 
 
 **Rozhodnutí.** VVZ: všechny formuláře uveřejněné v období (souhrn formuláře z vyhledávání API),
 počet se porovnává s hlavičkou `X-Total-Count`. IS ReD: dotace podepsané v období + jejich příjemci
-a rozhodnutí; je-li export starší než období, použije se stejně dlouhé okno končící datem exportu
-(D-022) a zapíše se do poznámky běhu. Seznam operací 21+: nejnovější měsíční soubor (celý, řádek =
+a rozhodnutí; končí-li data před začátkem období (ReD se publikuje se zpožděním), použije se stejně
+dlouhé okno končící posledním datem podpisu nejpozději k datu exportu (D-022) a skutečné okno se zapíše
+do poznámky běhu. Soubory ReD (≈ 600 MB) se znovu stahují jen tehdy, když je katalog CKAN (`last_modified`)
+uvádí jako změněné po posledním stažení. Seznam operací 21+: nejnovější měsíční soubor (celý, řádek =
 projekt × zakázka v projektu, ID = registrační číslo # číslo řádku). Zdroj počet neuvádí → srovnává se
 s počtem řádků souboru.
 **Důsledky.** Úplný obsah formulářů eForms (`children/search`, částky a dodavatelé) stahuje zatím jen
