@@ -13,7 +13,7 @@ VENV := .venv
 PY := $(VENV)/bin/python
 STAMP := $(VENV)/.nainstalovano
 
-.PHONY: help setup db migrate test lint gate pilot pilot-report db-stop
+.PHONY: help setup db migrate test lint gate pilot pilot-report db-stop sber sber-stav
 
 help:
 	@echo "make setup   – virtuální prostředí (Python 3.12) a závislosti"
@@ -23,6 +23,8 @@ help:
 	@echo "make lint    – ruff"
 	@echo "make gate    – publikační podmínky nad výstupy (docs/pilot_report.md, vystupy/)"
 	@echo "make pilot   – pilot měření kvality dat (P1–P4) -> docs/pilot_report.md"
+	@echo "make sber    – všechny stahovače do raw za poslední měsíc (ZDROJE=\"vvz red\" jen vybrané)"
+	@echo "make sber-stav – přehled posledních běhů sběru"
 
 $(STAMP): pyproject.toml
 	@if command -v uv >/dev/null 2>&1; then \
@@ -62,3 +64,11 @@ pilot: migrate
 pilot-report: migrate
 	$(PY) -m pvk.pilot report
 	$(PY) -m pvk.publikace
+
+# Sběr do raw za poslední měsíc (PVK_SBER_OD/PVK_SBER_DO mění období). Nedostupný zdroj se přeskočí
+# se záznamem v evidenci běhu (raw.beh_prehled).
+sber: migrate
+	$(PY) -m pvk.sber sber $(if $(ZDROJE),--zdroje "$(ZDROJE)")
+
+sber-stav: migrate
+	$(PY) -m pvk.sber stav

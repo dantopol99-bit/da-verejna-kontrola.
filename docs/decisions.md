@@ -303,3 +303,50 @@ rozpočtu session (30 min) nejméně 300 a 60.
 (kontrola proti textu originálů proběhla v pilotu na 200 smlouvách a neopakuje se). Výběr používá
 stejný seed, takže vzorek pilotu je prefixem nového vzorku. Oficiální zdroje registru smluv nebyly
 dostupné, P1 i kandidáti P2 proto pocházejí ze zrcadla; report to u každého čísla uvádí.
+
+## D-033 Sběr do raw: evidence běhů a nedostupné zdroje
+
+**Kontext.** Blok 2 – pravidelný sběr ze zdrojů. Registr smluv, NEN, ISVZ a CEDR odmítají spojení
+z cloudových adres (servery státu, ne síťové omezení prostředí).
+**Rozhodnutí.** `make sber` (`python -m pvk.sber`) spustí stahovače všech zdrojů za období (výchozí
+poslední měsíc `[dnes − 1 měsíc, dnes)`, `PVK_SBER_OD/DO`, výběr `ZDROJE="vvz red"`). Každý běh má
+evidenci v migraci 0007: `raw.beh` (začátek, zdroj, období, parametry) a `raw.beh_konec` (konec, stav
+`uspech | chyba | preskoceno`, počet zpracovaných a nově vložených záznamů, počet uváděný zdrojem, chyby);
+obě pouze INSERT, konec běhu je samostatný řádek (běh bez konce = `nedokonceno`). `raw.stazeni` a
+`raw.zaznam` nesou `beh_id`. Před sběrem proběhne **jeden** test dostupnosti bez opakování; nedostupný
+zdroj se přeskočí se stavem `preskoceno` a chybou spojení v evidenci – nic se neobchází. Návratový kód
+je 1 jen při chybě dostupného zdroje. Přehled: `make sber-stav` (pohled `raw.beh_prehled`).
+**Důsledky.** Opakovaný běh nevytvoří duplicity (`raw.zaznam` je unikátní podle zdroje, ID a hashe);
+změna záznamu ve zdroji = nový řádek. Blokované zdroje poběží stejným příkazem z české sítě.
+
+## D-034 Ověřovací běh: období a srovnání se zdrojem
+
+**Rozhodnutí.** VVZ: všechny formuláře uveřejněné v období (souhrn formuláře z vyhledávání API),
+počet se porovnává s hlavičkou `X-Total-Count`. IS ReD: dotace podepsané v období + jejich příjemci
+a rozhodnutí; je-li export starší než období, použije se stejně dlouhé okno končící datem exportu
+(D-022) a zapíše se do poznámky běhu. Seznam operací 21+: nejnovější měsíční soubor (celý, řádek =
+projekt × zakázka v projektu, ID = registrační číslo # číslo řádku). Zdroj počet neuvádí → srovnává se
+s počtem řádků souboru.
+**Důsledky.** Úplný obsah formulářů eForms (`children/search`, částky a dodavatelé) stahuje zatím jen
+adaptér pilotu; do sběru se doplní v dalším bloku (≈ 5 400 dotazů měsíčně nešlo v časovém rozpočtu).
+
+## D-035 Osobní údaje ve sběru
+
+**Rozhodnutí.** Rozšíření D-009 pro vnořené záznamy: `raw.zapis_zaznam(ulozeny_obsah=…)`, v `redigovano`
+jsou cesty vynechaných polí, hash je vždy z původního záznamu. Vynechává se: u VVZ osoba zadávající
+formulář (`owner`, `createdBy`, `updatedBy`, `uzivatelVvzLogin`); kontaktní údaje osob ve všech
+zdrojích (e-mail, telefon, kontaktní osoba); u stran bez IČO (smluvní strana RS, dodavatel NEN/ISVZ,
+dodavatel a poddodavatel v seznamu operací) název a adresa; u příjemců ReD/CEDR jméno, příjmení
+a rok narození; u příjemců – fyzických osob v seznamu operací název a PSČ.
+
+## D-036 Stahovače blokovaných zdrojů: dohledání souborů místo pevných cest
+
+**Kontext.** Přesné cesty k souborům ISVZ a CEDR a stránkování seznamu profilů NEN nešlo z cloudu ověřit.
+**Rozhodnutí.** Stahovače hledají soubory za běhu: ISVZ – odkazy na stránce `isvz.nipez.cz/opendata`,
+jejichž název obsahuje rok a měsíc období (JSON/XML/CSV, i v ZIP/GZIP); NEN – profily ze seznamu
+platných profilů (včetně stránek; `PVK_SBER_NEN_PROFILY` omezí výběr) a pro každý profil
+`/profil/{kód}/XMLdataVZ?od=DDMMRRRR&do=DDMMRRRR`; CEDR – odkazy ze stránky otevřených dat, jinak
+`c3lod/{Dotace|PrijemcePomoci|Rozhodnuti}.csv.gz`; registr smluv – denní dumpy. Nenalezený soubor je
+chyba v evidenci běhu, ne pád. Stahovače jsou otestované na vzorových datech (`tests/test_sber.py`).
+**Důsledky.** První běh z české sítě ověří předpoklady o struktuře; případná úprava bude malá a lokální
+(parser záznamů, vzor názvu souboru).

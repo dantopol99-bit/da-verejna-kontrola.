@@ -4,6 +4,8 @@ Stav ověřen 25. 9. 2026 (webové vyhledávání, Národní katalog otevřenýc
 a přímé dotazy z prostředí pilotu). Dostupnost z prostředí pilotu je doložena v `raw.stazeni`
 (test `pvk.pilot.dostupnost`, spouští se v `make pilot`) a shrnuta v [pilot_report.md](pilot_report.md).
 
+Sběr do raw (blok 2): `make sber`, přehled běhů `make sber-stav` – viz [oddíl 8](#8-sběr-do-raw-blok-2--dostupnost-a-ověřovací-běh).
+
 Legenda dostupnosti z prostředí pilotu: ✅ dostupné · ⛔ nedostupné (spojení ukončeno / odmítnuto) ·
 🛡 anti-bot výzva (neobcházíme).
 
@@ -101,3 +103,26 @@ Legenda dostupnosti z prostředí pilotu: ✅ dostupné · ⛔ nedostupné (spoj
 * **Evidence skutečných majitelů** – uzavřena od 17. 12. 2025; vlastnictví jen do úrovně obchodního rejstříku.
 * **Centrální registr oznámení** (majetková přiznání) – nepoužívá se vůbec.
 * Odvozené údaje třetích stran o politických vazbách osob – ve v1 žádné vazby osoba → politik.
+
+## 8. Sběr do raw (blok 2) – dostupnost a ověřovací běh
+
+Dostupnost ověřena **26. 9. 2026 12:27–12:29 SELČ jedním pokusem bez opakování** přímo v ověřovacím
+běhu `make sber` (pokus je v `raw.stazeni` s `beh_id`, výsledek v `raw.beh_prehled`). Blokované zdroje
+odmítají spojení z cloudových adres (server ukončí TLS spojení bez odpovědi); **stahovače poběží beze
+změny kódu z české sítě** – stačí `make sber` (nebo `make sber ZDROJE="registr_smluv nen isvz cedr"`).
+
+| Zdroj (`raw.zdroj`) | Test dostupnosti | Výsledek z cloudu | Stahovač (`pvk.sber.sberace`) |
+|---|---|---|---|
+| `registr_smluv` | `https://data.smlouvy.gov.cz/index.xml` | ⛔ `ConnectionError … Connection aborted` | denní dumpy `dump_RRRR_MM_DD.xml` za období, záznam = `<zaznam>` (ID = idVerze) |
+| `nen` | `https://nen.nipez.cz/profily-zadavatelu-platne` | ⛔ `ConnectionError … Connection aborted` | seznam platných profilů → `/profil/{kód}/XMLdataVZ?od=…&do=…`, záznam = `<zakazka>` |
+| `isvz` | `https://isvz.nipez.cz/opendata` | ⛔ `ConnectionError … Connection aborted` | měsíční soubory otevřených dat RVZ dohledané na stránce, záznam = položka souboru |
+| `vvz` | `https://api.vvz.nipez.cz/api/submissions/search` | ✅ | formuláře uveřejněné v období (250 na stránku), záznam = formulář (ID = evidenční číslo `F…`) |
+| `cedr` | `https://cedropendata.mfcr.cz/c3lod/cedr/` | ⛔ (viz běh) | `Dotace`, `PrijemcePomoci`, `Rozhodnuti` (CSV.gz); historická data, nástupce IS ReD |
+| `red` | `https://red.fs.gov.cz/opendata/api/3/action/package_show?id=dotace` | ✅ | `dotace` podepsané v okně + jejich `prijemce-pomoci` a `rozhodnuti` (CSV.gz z katalogu CKAN) |
+| `dotaceeu_2127` | stránka seznamu operací na dotaceeu.cz | ✅ | nejnovější měsíční XLSX „Seznam operací 21+“, záznam = řádek (projekt × zakázka) |
+
+SZIF je z v1 vyřazen (D-028), zrcadlo Hlídače státu se ve sběru nepoužívá (D-030).
+
+### Ověřovací běh 26. 9. 2026 (období 26. 8. – 25. 9. 2026)
+
+VYSLEDKY_BEHU
