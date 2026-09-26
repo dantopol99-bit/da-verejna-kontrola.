@@ -231,11 +231,14 @@ def parsuj_vyhledavani(obsah: str) -> tuple[int, list[VysledekHledani]]:
 
 
 class HlidacRS:
-    """Registr smluv přes zrcadlo Hlídač státu – jen pro pilot (D-030); v provozu výhradně oficiální zdroje."""
+    """Registr smluv přes zrcadlo Hlídač státu – jen pro pilot (D-030) a vývojový vzorek (D-040);
+    v provozu a pro publikovaná data výhradně oficiální zdroje."""
 
-    def __init__(self, stahovac: Stahovac, *, pilot: bool = False):
-        if not pilot:
-            raise PermissionError("zrcadlo Hlídač státu je povoleno jen pro pilot (D-030); použijte OficialniRS")
+    def __init__(self, stahovac: Stahovac, *, pilot: bool = False, vyvojovy_vzorek: bool = False):
+        if not (pilot or vyvojovy_vzorek):
+            raise PermissionError(
+                "zrcadlo Hlídač státu je povoleno jen pro pilot (D-030) a vývojový vzorek (D-040); použijte OficialniRS"
+            )
         self.s = stahovac
 
     def stranka_detailu(self, id_verze: str | int) -> Odpoved:

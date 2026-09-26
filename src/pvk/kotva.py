@@ -47,6 +47,8 @@ class Kotva(Protocol):
 
     def hledej_podle_nazvu(self, nazev: str, max_vysledku: int = 5) -> list[SubjektKotvy]: ...
 
+    def subjekty_podle_ico(self, ica: list[str]) -> dict[str, SubjektKotvy | None]: ...
+
 
 def je_fyzicka_osoba(pravni_forma: str | None) -> bool | None:
     if not pravni_forma:
@@ -126,6 +128,37 @@ class AresKotva:
         self._cache[ico_n] = vysledek
         return vysledek
 
+    DAVKA = 100  # IČO v jednom dotazu vyhledat (ARES vrací nejvýš 100 subjektů na stránku)
+
+    def subjekty_podle_ico(self, ica: list[str]) -> dict[str, SubjektKotvy | None]:
+        """Hromadné ověření IČO (normalizace): {IČO: subjekt, nebo None = v ARES nenalezeno}.
+        Jen paměťová cache po dobu běhu; neplatné IČO se vůbec nedotazuje."""
+        vysledek: dict[str, SubjektKotvy | None] = {}
+        dotaz = []
+        for ico in ica:
+            ico_n = normalizuj_ico(ico)
+            if ico_n is None or not ico_platne(ico_n):
+                vysledek[ico] = None
+            elif ico_n in self._cache:
+                vysledek[ico] = self._cache[ico_n]
+            else:
+                dotaz.append(ico_n)
+        for i in range(0, len(dotaz), self.DAVKA):
+            davka = dotaz[i : i + self.DAVKA]
+            self._pockej()
+            r = self.session.post(
+                f"{ARES_URL}/ekonomicke-subjekty/vyhledat",
+                json={"ico": davka, "start": 0, "pocet": self.DAVKA},
+                timeout=self.timeout,
+            )
+            nalezene = {}
+            if r.status_code not in (400, 404):
+                r.raise_for_status()
+                nalezene = {d["ico"]: self._z_ares(d) for d in r.json().get("ekonomickeSubjekty", []) if d.get("ico")}
+            for ico in davka:
+                self._cache[ico] = vysledek[ico] = nalezene.get(ico)
+        return vysledek
+
     def hledej_podle_nazvu(self, nazev: str, max_vysledku: int = 5) -> list[SubjektKotvy]:
         if not nazev or not nazev.strip():
             return []
@@ -155,6 +188,9 @@ class DbKotva:
         raise NotImplementedError("DbKotva: rozhraní kotvy zatím není dohodnuté (viz docs/decisions.md)")
 
     def hledej_podle_nazvu(self, nazev: str, max_vysledku: int = 5) -> list[SubjektKotvy]:
+        raise NotImplementedError("DbKotva: rozhraní kotvy zatím není dohodnuté (viz docs/decisions.md)")
+
+    def subjekty_podle_ico(self, ica: list[str]) -> dict[str, SubjektKotvy | None]:
         raise NotImplementedError("DbKotva: rozhraní kotvy zatím není dohodnuté (viz docs/decisions.md)")
 
 

@@ -63,6 +63,13 @@ ZDROJE: dict[str, dict[str, str]] = {
         "url": "https://www.dotaceeu.cz/cs/statistiky-a-analyzy/seznam-operaci-(prijemcu)",
         "licence": "zveřejňováno podle čl. 49 nařízení (EU) 2021/1060",
     },
+    "cnb_kurzy": {
+        "nazev": "ČNB – kurzy devizového trhu (roční soubory)",
+        "spravce": "Česká národní banka",
+        "url": "https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/",
+        "licence": "veřejně dostupné údaje ČNB",
+        "poznamka": "Přepočet cizoměnových částek k datu uzavření (normalizace, blok 3).",
+    },
     "szif": {
         "nazev": "SZIF – seznam příjemců dotací z fondů EU",
         "spravce": "Státní zemědělský intervenční fond",

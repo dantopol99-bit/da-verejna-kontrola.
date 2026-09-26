@@ -8,6 +8,8 @@ Podmínky nepublikování (každá má kód porušení):
   SOUHRN_BEZ_PODILU_HEURISTIKY
   HODNOTICI_SLOVA  (podezřelý, rizikový dodavatel, propojen s, napojen na – ve všech tvarech)
   PROFIL_FYZICKE_OSOBY  (fyzické osoby se nikdy nezobrazují jako samostatné profily)
+  DOTACE_BEZ_STAVU_K_DATU  (dotační údaj musí uvádět stav dat zdroje k datu, D-039)
+  VYVOJOVY_VZOREK  (vývojový vzorek, např. zrcadlo registru smluv, není zdroj publikovaných dat, D-040)
 
 Brána se spouští jako `python -m pvk.publikace` (make gate / make pilot) a v testech
 (tests/test_publikacni_podminky.py); jakékoli porušení ve výstupech shodí build.
@@ -22,6 +24,7 @@ import sys
 import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from pvk.config import KOREN
@@ -118,6 +121,41 @@ def over_indikator(v: Mapping, metodika: Mapping | None, kde: str = "") -> list[
     return p
 
 
+DOTACNI_TYPY = frozenset({"dotace_priznana", "dotace_cerpana", "vratka"})
+DOTACNI_ZDROJE = frozenset({"red", "cedr", "dotaceeu_2127", "szif"})
+ZDROJE_JEN_VYVOJOVE = frozenset({"hlidac_statu_rs"})
+
+
+def je_dotacni(v: Mapping) -> bool:
+    """Dotační údaj: částka dotačního typu (i uvnitř souhrnu) nebo výstup z dotačního zdroje."""
+    typy = {v.get("typ"), v.get("typ_castky")}
+    typy |= {c.get("typ") for c in v.get("castky") or [] if isinstance(c, Mapping)}
+    return bool(typy & DOTACNI_TYPY) or str(v.get("zdroj") or "") in DOTACNI_ZDROJE
+
+
+def _je_datum(hodnota: object) -> bool:
+    try:
+        date.fromisoformat(str(hodnota)[:10])
+    except ValueError:
+        return False
+    return hodnota is not None
+
+
+def over_stav_k_datu(v: Mapping, kde: str = "") -> list[Poruseni]:
+    """D-039: dotační údaj nese stav dat zdroje k datu (u IS ReD datum exportu), jinak se nepublikuje."""
+    if je_dotacni(v) and not _je_datum(v.get("stav_k_datu")):
+        return [Poruseni("DOTACE_BEZ_STAVU_K_DATU",
+                         "dotační údaj neuvádí stav dat zdroje k datu (pole stav_k_datu, D-039)", kde)]
+    return []
+
+
+def over_puvod(v: Mapping, kde: str = "") -> list[Poruseni]:
+    """D-040: vývojový vzorek (zrcadlo registru smluv) není zdroj publikovaných dat."""
+    if v.get("vyvojovy_vzorek") or str(v.get("zdroj") or "") in ZDROJE_JEN_VYVOJOVE:
+        return [Poruseni("VYVOJOVY_VZOREK", "výstup stojí na vývojovém vzorku, ne na zdroji pro publikaci", kde)]
+    return []
+
+
 def over_castku(c: Mapping, kde: str = "") -> list[Poruseni]:
     p: list[Poruseni] = []
     if _chybi(c.get("typ")):
@@ -188,16 +226,19 @@ def nacti_metodiky(koren: Path = KOREN) -> dict[str, dict]:
 
 def over_vystup(vystup: Mapping, metodiky: Mapping[str, Mapping], kde: str) -> list[Poruseni]:
     druh = vystup.get("druh")
+    puvod = over_puvod(vystup, kde)
+    if druh in ("indikator", "souhrn", "castka"):
+        puvod += over_stav_k_datu(vystup, kde)
     if druh == "indikator":
-        return over_indikator(vystup, metodiky.get(str(vystup.get("metodika_verze"))), kde)
+        return over_indikator(vystup, metodiky.get(str(vystup.get("metodika_verze"))), kde) + puvod
     if druh == "souhrn":
-        return over_souhrn(vystup, kde)
+        return over_souhrn(vystup, kde) + puvod
     if druh == "castka":
-        return over_castku(vystup, kde)
+        return over_castku(vystup, kde) + puvod
     if druh == "profil":
-        return over_profil(vystup, kde)
+        return over_profil(vystup, kde) + puvod
     if druh == "text":
-        return over_text(vystup.get("text"), kde)
+        return over_text(vystup.get("text"), kde) + puvod
     return [Poruseni("NEZNAMY_VYSTUP", f"výstup bez známého druhu: {druh!r}", kde)]
 
 

@@ -1,0 +1,20 @@
+{
+  "kod": "normalizace-2026.09",
+  "popis": "Normalizace raw -> core: typ částky podle pole zdroje, režim DPH, měna, perioda; IČO, kurzy ČNB",
+  "platnost_od": "2026-09-26",
+  "dokument": "metodika/normalizace-2026.09.md",
+  "parametry": {
+    "castky": {
+      "vvz.BT-27": {"typ": "predpokladana", "dph_rezim": "bez_dph", "perioda": "celkem"},
+      "vvz.BT-720": {"typ": "vysoutezena", "dph_rezim": "bez_dph", "perioda": "celkem"},
+      "vvz.zmena": {"typ": "zmena_dodatkem", "dph_rezim": "bez_dph", "perioda": "celkem"},
+      "eu.pravni_akt": {"typ": "dotace_priznana", "dph_rezim": "mimo_dph", "perioda": "celkem"},
+      "eu.vyuctovano": {"typ": "dotace_cerpana", "dph_rezim": "mimo_dph", "perioda": "celkem"},
+      "eu.vz_predpokladana": {"typ": "predpokladana", "dph_rezim": "bez_dph", "perioda": "celkem"},
+      "eu.vz_smluvni": {"typ": "smluvni", "dph_rezim": "bez_dph", "perioda": "celkem"}
+    },
+    "kurz_max_stari_dnu": 10,
+    "kotva": "ares",
+    "vazba_zdrojoveho_zaznamu": {"stav": "dolozena", "metoda": "identifikator_ve_zdroji", "skore": 1}
+  }
+}

@@ -17,6 +17,9 @@ from decimal import Decimal
 import psycopg
 from psycopg.types.json import Jsonb
 
+# Zdroje, jejichž záznamy smějí do raw jen jako vývojový vzorek (D-040): zrcadlo registru smluv.
+ZDROJE_JEN_VYVOJOVE = frozenset({"hlidac_statu_rs"})
+
 
 def _json_default(o: object) -> object:
     if isinstance(o, (datetime, date)):
@@ -118,24 +121,29 @@ def zapis_zaznam(
     redigovat: Iterable[str] = (),
     ulozeny_obsah: Mapping | None = None,
     beh_id: int | None = None,
+    vyvojovy_vzorek: bool = False,
 ) -> int:
     """Uloží zdrojový záznam. Hash se počítá z původního záznamu; pole v `redigovat`
     (osobní údaje fyzických osob bez IČO) se do obsahu neuloží a jejich jména se zapíší do `redigovano`.
     U vnořených polí předá volající už redigovaný `ulozeny_obsah` a v `redigovat` cesty k vynechaným polím.
+    `vyvojovy_vzorek`: záznam jen pro vývoj, nikdy zdroj publikovaných dat (D-040); u zdrojů
+    ze ZDROJE_JEN_VYVOJOVE se nastaví vždy.
     Vrací id řádku (nového, nebo již existujícího se stejným hashem)."""
     redigovat = sorted(set(redigovat))
+    vyvojovy_vzorek = vyvojovy_vzorek or zdroj in ZDROJE_JEN_VYVOJOVE
     h = hash_zaznamu(obsah)
     if ulozeny_obsah is None:
         ulozeny_obsah = {k: v for k, v in obsah.items() if k not in redigovat}
     row = conn.execute(
         """
         INSERT INTO raw.zaznam (zdroj, id_ve_zdroji, url, cas_stazeni, hash, stazeni_id, format, obsah, redigovano,
-                                beh_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                beh_id, vyvojovy_vzorek)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (zdroj, id_ve_zdroji, hash) DO NOTHING
         RETURNING id
         """,
-        (zdroj, str(id_ve_zdroji), url, cas_stazeni, h, stazeni_id, format, _jsonb(ulozeny_obsah), redigovat, beh_id),
+        (zdroj, str(id_ve_zdroji), url, cas_stazeni, h, stazeni_id, format, _jsonb(ulozeny_obsah), redigovat, beh_id,
+         vyvojovy_vzorek),
     ).fetchone()
     if row is None:
         row = conn.execute(

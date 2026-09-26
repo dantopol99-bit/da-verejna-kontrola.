@@ -1,5 +1,6 @@
 import shutil
 
+import psycopg
 import pytest
 
 from pvk.db import ADRESAR_MIGRACI, ChybaMigrace, migruj, pripoj
@@ -42,7 +43,7 @@ def test_entity_podle_metodiky(db):
 def test_vsechny_entity_core_jsou_bitemporalni(db):
     for r in db.execute(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'core' "
-        "AND table_type = 'BASE TABLE' AND table_name <> 'entita'"
+        "AND table_type = 'BASE TABLE' AND table_name NOT IN ('entita', 'normalizace_beh', 'normalizace_vyjimka')"
     ).fetchall():
         sloupce = {
             c["column_name"]
@@ -52,3 +53,15 @@ def test_vsechny_entity_core_jsou_bitemporalni(db):
             )
         }
         assert {"valid_from", "valid_to", "recorded_from", "recorded_to"} <= sloupce, r["table_name"]
+
+
+def test_evidence_normalizace_je_pouze_pro_insert(db):
+    """Evidence běhů a výjimek normalizace nejsou entity (nejsou bitemporální), ale nic se v nich nepřepisuje."""
+    db.execute("INSERT INTO core.normalizace_beh (parametry) VALUES ('{}')")
+    for prikaz in ("DELETE FROM core.normalizace_beh", "UPDATE core.normalizace_beh SET parametry = '{}'",
+                   "TRUNCATE core.normalizace_vyjimka"):
+        db.execute("SAVEPOINT s")
+        with pytest.raises(psycopg.Error) as e:
+            db.execute(prikaz)
+        assert e.value.sqlstate == "PV001", prikaz
+        db.execute("ROLLBACK TO SAVEPOINT s")
